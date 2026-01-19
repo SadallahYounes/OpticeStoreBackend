@@ -1,15 +1,17 @@
 package com.opticstore.order.service;
 
 import com.opticstore.glasses.repository.GlassesRepository;
-import com.opticstore.order.dto.OrderItemRequest;
-import com.opticstore.order.dto.OrderRequest;
+import com.opticstore.order.dto.*;
+import com.opticstore.order.history.service.OrderStatusHistoryService;
 import com.opticstore.order.model.Order;
 import com.opticstore.order.model.OrderItem;
 import com.opticstore.order.model.OrderStatus;
 import com.opticstore.order.model.PaymentMethod;
 import com.opticstore.order.repository.OrderRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -18,9 +20,14 @@ import java.util.List;
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderStatusHistoryService statusHistoryService;
 
-    public OrderService(OrderRepository orderRepository) {
+    public OrderService(
+            OrderRepository orderRepository,
+            OrderStatusHistoryService statusHistoryService
+    ) {
         this.orderRepository = orderRepository;
+        this.statusHistoryService = statusHistoryService;
     }
 
     public Order createOrder(OrderRequest request) {
@@ -30,6 +37,7 @@ public class OrderService {
         order.setLastName(request.lastName());
         order.setPhone(request.phone());
         order.setWilaya(request.wilaya());
+        order.setBaladia(request.baladia());
         order.setAddress(request.address());
         order.setPaymentMethod(PaymentMethod.CASH_ON_DELIVERY);
         order.setStatus(OrderStatus.NEW);
@@ -54,5 +62,87 @@ public class OrderService {
 
         return orderRepository.save(order);
     }
+
+
+    //GET ADMIN ORDERS ...
+
+    public Page<AdminOrderResponse> getAdminOrders(
+            String search,
+            Pageable pageable
+    ) {
+        Page<Order> orders;
+
+        if (search == null || search.isBlank()) {
+            orders = orderRepository.findAll(pageable);
+        } else {
+            orders = orderRepository.searchOrders(search.trim(), pageable);
+        }
+
+        return orders.map(o ->
+                new AdminOrderResponse(
+                        o.getId(),
+                        o.getFirstName() + " " + o.getLastName(),
+                        o.getPhone(),
+                        o.getWilaya(),
+                        o.getBaladia(),
+                        o.getTotal(),
+                        o.getStatus().name(),
+                        o.getCreatedAt()
+                )
+        );
+    }
+
+
+    public OrderDetailsResponse getOrderDetails(Long id) {
+
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        return new OrderDetailsResponse(
+                order.getId(),
+                order.getFirstName(),
+                order.getLastName(),
+                order.getPhone(),
+                order.getWilaya(),
+                order.getBaladia(),
+                order.getAddress(),
+                order.getTotal(),
+                order.getStatus().name(),
+                order.getCreatedAt(),
+                order.getItems().stream()
+                        .map(i -> new OrderItemResponse(
+                                i.getGlassId(),
+                                i.getGlassName(),
+                                i.getPrice(),
+                                i.getQuantity()
+                        ))
+                        .toList()
+        );
+    }
+
+    @Transactional
+    public Order updateOrderStatus(Long orderId, OrderStatus newStatus, String adminUsername) {
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        OrderStatus oldStatus = order.getStatus();
+
+        if (oldStatus != newStatus) {
+            order.setStatus(newStatus);
+            orderRepository.save(order);
+
+            statusHistoryService.logStatusChange(
+                    order,
+                    oldStatus,
+                    newStatus,
+                    adminUsername
+            );
+        }
+
+        return order;
+    }
+
+
 }
 

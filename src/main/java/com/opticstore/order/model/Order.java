@@ -16,6 +16,7 @@ public class Order extends BaseEntity {
     private String phone;
 
     private String wilaya;
+    private String baladia;
     private String address;
 
     private BigDecimal total;
@@ -101,5 +102,13 @@ public class Order extends BaseEntity {
 
     public void setItems(List<OrderItem> items) {
         this.items = items;
+    }
+
+    public String getBaladia() {
+        return baladia;
+    }
+
+    public void setBaladia(String baladia) {
+        this.baladia = baladia;
     }
 }

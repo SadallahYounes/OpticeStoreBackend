@@ -7,6 +7,7 @@ public record OrderRequest(
         String lastName,
         String phone,
         String wilaya,
+        String baladia,
         String address,
         List<OrderItemRequest> items
 ) {}
