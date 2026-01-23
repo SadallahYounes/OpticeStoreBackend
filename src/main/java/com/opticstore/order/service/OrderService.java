@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import java.math.BigDecimal;
 import java.util.List;
 
+
 @Service
 public class OrderService {
 
@@ -78,18 +79,22 @@ public class OrderService {
             orders = orderRepository.searchOrders(search.trim(), pageable);
         }
 
-        return orders.map(o ->
-                new AdminOrderResponse(
-                        o.getId(),
-                        o.getFirstName() + " " + o.getLastName(),
-                        o.getPhone(),
-                        o.getWilaya(),
-                        o.getBaladia(),
-                        o.getTotal(),
-                        o.getStatus().name(),
-                        o.getCreatedAt()
-                )
-        );
+        return orders.map(o -> {
+            String status = o.getStatus() != null
+                    ? o.getStatus().name()
+                    : "NEW";
+
+            return new AdminOrderResponse(
+                    o.getId(),
+                    o.getFirstName() + " " + o.getLastName(),
+                    o.getPhone(),
+                    o.getWilaya(),
+                    o.getBaladia(),
+                    o.getTotal(),
+                    status,
+                    o.getCreatedAt()
+            );
+        });
     }
 
 
@@ -97,6 +102,10 @@ public class OrderService {
 
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        String status = order.getStatus() != null
+                ? order.getStatus().name()
+                : "NEW";
 
         return new OrderDetailsResponse(
                 order.getId(),
@@ -107,7 +116,7 @@ public class OrderService {
                 order.getBaladia(),
                 order.getAddress(),
                 order.getTotal(),
-                order.getStatus().name(),
+                status,
                 order.getCreatedAt(),
                 order.getItems().stream()
                         .map(i -> new OrderItemResponse(

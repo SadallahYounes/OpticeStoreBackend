@@ -1,5 +1,6 @@
 package com.opticstore.order.history.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.opticstore.order.model.Order;
 import com.opticstore.order.model.OrderStatus;
 import jakarta.persistence.*;
@@ -16,6 +17,7 @@ public class OrderStatusHistory {
 
     @ManyToOne
     @JoinColumn(name = "order_id")
+    @JsonIgnore
     private Order order;
 
     private String oldStatus;

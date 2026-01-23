@@ -1,5 +1,6 @@
 package com.opticstore.order.history.controller;
 
+import com.opticstore.order.history.dto.OrderStatusHistoryResponse;
 import com.opticstore.order.history.entity.OrderStatusHistory;
 import com.opticstore.order.history.service.OrderStatusHistoryService;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,7 +23,7 @@ public class OrderStatusHistoryController {
     }
 
     @GetMapping("/{orderId}/status-history")
-    public List<OrderStatusHistory> getHistory(@PathVariable Long orderId) {
+    public List<OrderStatusHistoryResponse> getHistory(@PathVariable Long orderId) {
         return service.getByOrder(orderId);
     }
 }

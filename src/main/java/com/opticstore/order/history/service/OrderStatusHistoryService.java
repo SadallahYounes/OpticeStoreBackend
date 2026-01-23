@@ -1,5 +1,6 @@
 package com.opticstore.order.history.service;
 
+import com.opticstore.order.history.dto.OrderStatusHistoryResponse;
 import com.opticstore.order.history.entity.OrderStatusHistory;
 import com.opticstore.order.history.repository.OrderStatusHistoryRepository;
 import com.opticstore.order.model.Order;
@@ -33,8 +34,16 @@ public class OrderStatusHistoryService {
     }
 
 
-    public List<OrderStatusHistory> getByOrder(Long orderId) {
-        return repository.findByOrderIdOrderByChangedAtDesc(orderId);
+    public List<OrderStatusHistoryResponse> getByOrder(Long orderId) {
+        return repository.findByOrderIdOrderByChangedAtAsc(orderId)
+                .stream()
+                .map(h -> new OrderStatusHistoryResponse(
+                        h.getOldStatus(),
+                        h.getNewStatus(),
+                        h.getChangedBy(),
+                        h.getChangedAt()
+                ))
+                .toList();
     }
 
 }

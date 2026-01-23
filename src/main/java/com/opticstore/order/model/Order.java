@@ -25,6 +25,7 @@ public class Order extends BaseEntity {
     private PaymentMethod paymentMethod;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private OrderStatus status;
 
     private LocalDateTime createdAt = LocalDateTime.now();
