@@ -28,6 +28,7 @@ public class Order extends BaseEntity {
     @Column(nullable = false)
     private OrderStatus status;
 
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
@@ -111,5 +112,10 @@ public class Order extends BaseEntity {
 
     public void setBaladia(String baladia) {
         this.baladia = baladia;
+    }
+
+    @PrePersist
+    public void onCreate() {
+        this.createdAt = LocalDateTime.now();
     }
 }

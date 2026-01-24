@@ -46,5 +46,23 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         ORDER BY DATE(o.createdAt)
     """)
     List<Object[]> salesByDay();
+
+
+    @Query("""
+        SELECT o FROM Order o
+        WHERE 
+        (
+          LOWER(o.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+          OR LOWER(o.phone) LIKE LOWER(CONCAT('%', :search, '%'))
+        )
+        AND (:status IS NULL OR o.status = :status)
+        AND (:wilaya IS NULL OR o.wilaya = :wilaya)
+        """)
+            Page<Order> searchAdminOrders(
+                    @Param("search") String search,
+                    @Param("status") OrderStatus status,
+                    @Param("wilaya") String wilaya,
+                    Pageable pageable
+    );
 }
 

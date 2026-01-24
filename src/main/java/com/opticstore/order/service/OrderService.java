@@ -3,6 +3,7 @@ package com.opticstore.order.service;
 import com.opticstore.glasses.repository.GlassesRepository;
 import com.opticstore.order.dto.*;
 import com.opticstore.order.history.service.OrderStatusHistoryService;
+import com.opticstore.order.mapper.AdminOrderMapper;
 import com.opticstore.order.model.Order;
 import com.opticstore.order.model.OrderItem;
 import com.opticstore.order.model.OrderStatus;
@@ -69,32 +70,18 @@ public class OrderService {
 
     public Page<AdminOrderResponse> getAdminOrders(
             String search,
+            OrderStatus status,
+            String wilaya,
             Pageable pageable
     ) {
-        Page<Order> orders;
+        Page<Order> orders = orderRepository.searchAdminOrders(
+                search,
+                status,
+                wilaya,
+                pageable
+        );
 
-        if (search == null || search.isBlank()) {
-            orders = orderRepository.findAll(pageable);
-        } else {
-            orders = orderRepository.searchOrders(search.trim(), pageable);
-        }
-
-        return orders.map(o -> {
-            String status = o.getStatus() != null
-                    ? o.getStatus().name()
-                    : "NEW";
-
-            return new AdminOrderResponse(
-                    o.getId(),
-                    o.getFirstName() + " " + o.getLastName(),
-                    o.getPhone(),
-                    o.getWilaya(),
-                    o.getBaladia(),
-                    o.getTotal(),
-                    status,
-                    o.getCreatedAt()
-            );
-        });
+        return orders.map(AdminOrderMapper::toResponse);
     }
 
 
