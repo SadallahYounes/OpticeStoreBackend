@@ -74,14 +74,12 @@ public class OrderService {
             String wilaya,
             Pageable pageable
     ) {
-        Page<Order> orders = orderRepository.searchAdminOrders(
-                search,
+        return orderRepository.searchAdminOrders(
+                search == null ? "" : search,
                 status,
                 wilaya,
                 pageable
-        );
-
-        return orders.map(AdminOrderMapper::toResponse);
+        ).map(AdminOrderMapper::toResponse);
     }
 
 

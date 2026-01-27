@@ -4,13 +4,17 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class JwtService {
@@ -26,6 +30,17 @@ public class JwtService {
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    // NEW METHOD: Extract roles from token
+    public List<String> extractRoles(String token) {
+        return extractClaim(token, claims -> {
+            Object rolesObj = claims.get("roles");
+            if (rolesObj instanceof List) {
+                return (List<String>) rolesObj;
+            }
+            return Collections.emptyList();
+        });
     }
 
     public Date extractExpiration(String token) {
@@ -54,9 +69,14 @@ public class JwtService {
     }
 
     public String generateToken(UserDetails userDetails) {
+        // Extract authorities/roles from UserDetails
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
 
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
+                .claim("roles", roles)
                 .setIssuedAt(new Date())
                 .setExpiration(
                         new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24)
