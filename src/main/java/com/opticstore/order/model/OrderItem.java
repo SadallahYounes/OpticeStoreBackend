@@ -1,7 +1,6 @@
 package com.opticstore.order.model;
 
 import com.opticstore.common.model.BaseEntity;
-import com.opticstore.glasses.model.Glasses;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
