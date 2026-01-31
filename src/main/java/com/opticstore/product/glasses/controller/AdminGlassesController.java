@@ -4,12 +4,15 @@ import com.opticstore.product.brand.model.Brand;
 import com.opticstore.product.brand.repository.BrandRepository;
 import com.opticstore.product.category.model.Category;
 import com.opticstore.product.category.repository.CategoryRepository;
+import com.opticstore.product.glasses.dto.GlassesAdminResponse;
 import com.opticstore.product.glasses.dto.GlassesCreateRequest;
 import com.opticstore.product.glasses.dto.GlassesResponse;
 import com.opticstore.product.glasses.service.GlassesService;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/glasses")
@@ -21,6 +24,7 @@ public class AdminGlassesController {
     private final CategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
 
+
     public AdminGlassesController(
             GlassesService glassesService,
             CategoryRepository categoryRepository,
@@ -29,7 +33,9 @@ public class AdminGlassesController {
         this.glassesService = glassesService;
         this.categoryRepository = categoryRepository;
         this.brandRepository = brandRepository;
+
     }
+
 
     @PostMapping
     public GlassesResponse create(@RequestBody @Valid GlassesCreateRequest request) {
@@ -42,5 +48,11 @@ public class AdminGlassesController {
 
         return glassesService.create(request, category, brand);
     }
+
+    @GetMapping
+    public List<GlassesAdminResponse> getAll() {
+        return glassesService.getAllForAdmin();
+    }
+
 }
 
