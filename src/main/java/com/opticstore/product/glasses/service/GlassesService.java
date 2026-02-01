@@ -16,12 +16,12 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
+@Transactional
 public class GlassesService {
 
     private final GlassesRepository glassesRepository;
-    private final CategoryRepository categoryRepository ;
+    private final CategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
-
 
     public GlassesService(GlassesRepository glassesRepository,
                           CategoryRepository categoryRepository,
@@ -31,9 +31,11 @@ public class GlassesService {
         this.brandRepository = brandRepository;
     }
 
+    // Customer-facing methods
     public List<GlassesResponse> getByCategory(String slug) {
         return glassesRepository.findByCategory_Slug(slug)
                 .stream()
+                .filter(Glasses::isActive) // Only active products for customers
                 .map(g -> new GlassesResponse(
                         g.getId(),
                         g.getName(),
@@ -48,6 +50,7 @@ public class GlassesService {
     public List<GlassesResponse> getByBrand(String brand) {
         return glassesRepository.findByBrand_NameIgnoreCase(brand)
                 .stream()
+                .filter(Glasses::isActive) // Only active products for customers
                 .map(g -> new GlassesResponse(
                         g.getId(),
                         g.getName(),
@@ -59,14 +62,23 @@ public class GlassesService {
                 .toList();
     }
 
+    public List<GlassesResponse> getAllForCustomers() {
+        return glassesRepository.findByActiveTrue()
+                .stream()
+                .map(g -> new GlassesResponse(
+                        g.getId(),
+                        g.getName(),
+                        g.getPrice(),
+                        g.getImageUrl(),
+                        g.getCategory().getName(),
+                        g.getBrand().getName()
+                ))
+                .toList();
+    }
 
-    /* ================== ADMIN ================== */
+    /* ================== ADMIN METHODS ================== */
 
-    @Transactional
-    public GlassesResponse create(GlassesCreateRequest request,
-                                  Category category,
-                                  Brand brand) {
-
+    public GlassesResponse create(GlassesCreateRequest request, Category category, Brand brand) {
         if (request.getQuantity() < 0) {
             throw new IllegalArgumentException("Quantity cannot be negative");
         }
@@ -91,8 +103,6 @@ public class GlassesService {
         );
     }
 
-
-    @Transactional
     public void updateStock(Long glassesId, int newQuantity) {
         if (newQuantity < 0) {
             throw new IllegalArgumentException("Quantity cannot be negative");
@@ -114,22 +124,31 @@ public class GlassesService {
                         g.getQuantity(),
                         g.getCategory().getName(),
                         g.getBrand().getName(),
-                        g.getImageUrl()
+                        g.getImageUrl(),
+                        g.isActive()
                 ))
                 .toList();
     }
 
-
-    @Transactional
     public GlassesAdminResponse updateGlass(Long id, GlassesUpdateRequest req) {
-
         Glasses g = glassesRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Glass not found"));
 
+
         if (req.name() != null) g.setName(req.name());
         if (req.price() != null) g.setPrice(req.price());
-        if (req.quantity() != null) g.setQuantity(req.quantity());
+        if (req.quantity() != null) {
+            if (req.quantity() < 0) {
+                throw new IllegalArgumentException("Quantity cannot be negative");
+            }
+            g.setQuantity(req.quantity());
+        }
         if (req.imageUrl() != null) g.setImageUrl(req.imageUrl());
+
+        // Add this: Update active status if provided
+        if (req.active() != null) {
+            g.setActive(req.active());
+        }
 
         if (req.categoryId() != null) {
             Category category = categoryRepository.findById(req.categoryId())
@@ -152,9 +171,21 @@ public class GlassesService {
                 saved.getQuantity(),
                 saved.getCategory().getName(),
                 saved.getBrand().getName(),
-                saved.getImageUrl()
+                saved.getImageUrl(),
+                saved.isActive()
         );
     }
 
+    public void delete(Long id) {
+        Glasses g = glassesRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Glass not found"));
 
+        // Check if already deleted
+        if (!g.isActive()) {
+            throw new RuntimeException("Product is already deleted");
+        }
+
+        g.setActive(false);
+        glassesRepository.save(g);
+    }
 }

@@ -1,29 +1,22 @@
 package com.opticstore.product.glasses.dto;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
 
 
 public class GlassesCreateRequest {
 
-    @NotBlank
-    private String name;
-
-    @NotNull
-    private BigDecimal price;
-
-    private String imageUrl;
-
-    @NotNull
-    private Integer quantity; // REQUIRED
-
-    @NotNull
-    private Long categoryId;
-
-    @NotNull
-    private Long brandId;
+    @NotBlank String name;
+    @NotNull @Positive
+    BigDecimal price;
+    @NotBlank String imageUrl;
+    @NotNull Long categoryId;
+    @NotNull Long brandId;
+    @NotNull @Min(0) Integer quantity;
 
     //setter & getter
 
@@ -74,5 +67,7 @@ public class GlassesCreateRequest {
     public void setBrandId(Long brandId) {
         this.brandId = brandId;
     }
+
+
 }
 

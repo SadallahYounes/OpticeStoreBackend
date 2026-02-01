@@ -7,8 +7,10 @@ import com.opticstore.product.category.repository.CategoryRepository;
 import com.opticstore.product.glasses.dto.GlassesAdminResponse;
 import com.opticstore.product.glasses.dto.GlassesCreateRequest;
 import com.opticstore.product.glasses.dto.GlassesResponse;
+import com.opticstore.product.glasses.dto.GlassesUpdateRequest;
 import com.opticstore.product.glasses.service.GlassesService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,7 +18,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/glasses")
-@CrossOrigin
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminGlassesController {
 
@@ -54,5 +55,18 @@ public class AdminGlassesController {
         return glassesService.getAllForAdmin();
     }
 
+    @PatchMapping("/{id}")
+    public GlassesAdminResponse update(
+            @PathVariable Long id,
+            @RequestBody @Valid GlassesUpdateRequest request
+    ) {
+        return glassesService.updateGlass(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        glassesService.delete(id);
+    }
 }
 

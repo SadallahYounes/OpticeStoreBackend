@@ -49,6 +49,8 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
 
+
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // PUBLIC
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/glasses/**").permitAll()
@@ -58,8 +60,9 @@ public class SecurityConfig {
                         // ADMIN
                         .requestMatchers(HttpMethod.POST, "/api/glasses/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/brands/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+
 
                         .anyRequest().authenticated()
                 )
@@ -97,7 +100,7 @@ public class SecurityConfig {
         ));
 
         config.setAllowedMethods(List.of(
-                "GET", "POST", "PUT", "DELETE", "OPTIONS"
+                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
         ));
 
         config.setAllowedHeaders(List.of(

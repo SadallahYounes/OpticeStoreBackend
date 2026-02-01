@@ -8,5 +8,6 @@ public record GlassesUpdateRequest(
         Integer quantity,
         Long categoryId,
         Long brandId,
-        String imageUrl
+        String imageUrl,
+        Boolean active
 ) {}

@@ -10,7 +10,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/glasses")
-@CrossOrigin
 public class GlassesController {
 
     private final GlassesService service;
@@ -33,11 +32,4 @@ public class GlassesController {
         return List.of();
     }
 
-    @PatchMapping("/{id}")
-    public GlassesAdminResponse update(
-            @PathVariable Long id,
-            @RequestBody GlassesUpdateRequest request
-    ) {
-        return service.updateGlass(id, request);
-    }
 }

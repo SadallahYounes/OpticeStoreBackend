@@ -9,5 +9,6 @@ public record GlassesAdminResponse(
         Integer quantity,
         String category,
         String brand,
-        String imageUrl
+        String imageUrl,
+        boolean active
 ) {}

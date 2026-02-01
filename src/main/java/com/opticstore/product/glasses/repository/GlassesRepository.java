@@ -11,4 +11,7 @@ public interface GlassesRepository extends JpaRepository<Glasses, Long> {
     List<Glasses> findByCategory_Slug(String slug);
 
     List<Glasses> findByBrand_NameIgnoreCase(String name);
+
+    List<Glasses> findByActiveTrue();
+
 }

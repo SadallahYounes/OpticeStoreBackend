@@ -30,6 +30,9 @@ public class Glasses extends BaseEntity {
     @Column(nullable = false)
     private Integer quantity;
 
+    @Column(nullable = false)
+    private boolean active = true;
+
     // getters & setters
 
 
@@ -79,5 +82,13 @@ public class Glasses extends BaseEntity {
 
     public void setQuantity(Integer quantity) {
         this.quantity = quantity;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 }
