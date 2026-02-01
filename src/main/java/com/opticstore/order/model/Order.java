@@ -35,6 +35,9 @@ public class Order extends BaseEntity {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
     private List<OrderItem> items;
 
+
+    //getters and setters ...
+
     public String getFirstName() {
         return firstName;
     }

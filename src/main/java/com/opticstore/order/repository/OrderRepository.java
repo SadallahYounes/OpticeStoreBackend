@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -51,5 +52,38 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         ORDER BY DATE(o.createdAt)
     """)
     List<Object[]> salesByDay();
+
+    // STATS METHODS
+    List<Order> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    List<Order> findByCreatedAtAfter(LocalDateTime date);
+
+    Long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    List<Order> findByStatus(OrderStatus status);
+
+    // FIXED: Return BigDecimal instead of Double
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.createdAt BETWEEN :start AND :end")
+    BigDecimal sumRevenueBetweenDates(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    // FIXED: Return BigDecimal instead of Double
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.createdAt >= :date")
+    BigDecimal sumRevenueAfterDate(@Param("date") LocalDateTime date);
+
+    // Optional: Add status filter to revenue queries
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.status = :status AND o.createdAt BETWEEN :start AND :end")
+    BigDecimal sumRevenueByStatusBetweenDates(
+            @Param("status") OrderStatus status,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+
+    @Query(value = "SELECT COUNT(DISTINCT phone) FROM orders", nativeQuery = true)
+    Long countUniqueCustomers();
+
+    // Or if you want to count by unique phone + name combination
+    @Query(value = "SELECT COUNT(DISTINCT CONCAT(first_name, ' ', last_name, ' ', phone)) FROM orders", nativeQuery = true)
+    Long countUniqueCustomerIdentities();
 }
 
