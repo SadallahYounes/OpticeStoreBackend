@@ -10,7 +10,9 @@ import com.opticstore.product.glasses.dto.GlassesResponse;
 import com.opticstore.product.glasses.dto.GlassesUpdateRequest;
 import com.opticstore.product.glasses.model.Glasses;
 import com.opticstore.product.glasses.repository.GlassesRepository;
+import com.opticstore.utils.ImageUrlMapper;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -23,6 +25,9 @@ public class GlassesService {
     private final CategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
 
+    @Value("${app.base-url:http://localhost:8080}")
+    private String baseUrl;
+
     public GlassesService(GlassesRepository glassesRepository,
                           CategoryRepository categoryRepository,
                           BrandRepository brandRepository) {
@@ -31,16 +36,28 @@ public class GlassesService {
         this.brandRepository = brandRepository;
     }
 
-    // Customer-facing methods
+    // Helper method for full image URLs
+    private String getFullImageUrl(String imagePath) {
+        if (imagePath == null || imagePath.isEmpty()) {
+            return null;
+        }
+        if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+            return imagePath;
+        }
+        return baseUrl + imagePath;
+    }
+
+    // ============== CUSTOMER METHODS ==============
+
     public List<GlassesResponse> getByCategory(String slug) {
         return glassesRepository.findByCategory_Slug(slug)
                 .stream()
-                .filter(Glasses::isActive) // Only active products for customers
+                .filter(Glasses::isActive)
                 .map(g -> new GlassesResponse(
                         g.getId(),
                         g.getName(),
                         g.getPrice(),
-                        g.getImageUrl(),
+                        getFullImageUrl(g.getImageUrl()),
                         g.getCategory().getName(),
                         g.getBrand().getName()
                 ))
@@ -50,12 +67,12 @@ public class GlassesService {
     public List<GlassesResponse> getByBrand(String brand) {
         return glassesRepository.findByBrand_NameIgnoreCase(brand)
                 .stream()
-                .filter(Glasses::isActive) // Only active products for customers
+                .filter(Glasses::isActive)
                 .map(g -> new GlassesResponse(
                         g.getId(),
                         g.getName(),
                         g.getPrice(),
-                        g.getImageUrl(),
+                        getFullImageUrl(g.getImageUrl()),
                         g.getCategory().getName(),
                         g.getBrand().getName()
                 ))
@@ -69,14 +86,14 @@ public class GlassesService {
                         g.getId(),
                         g.getName(),
                         g.getPrice(),
-                        g.getImageUrl(),
+                        getFullImageUrl(g.getImageUrl()),
                         g.getCategory().getName(),
                         g.getBrand().getName()
                 ))
                 .toList();
     }
 
-    /* ================== ADMIN METHODS ================== */
+    // ============== ADMIN METHODS ==============
 
     public GlassesResponse create(GlassesCreateRequest request, Category category, Brand brand) {
         if (request.getQuantity() < 0) {
@@ -97,7 +114,7 @@ public class GlassesService {
                 saved.getId(),
                 saved.getName(),
                 saved.getPrice(),
-                saved.getImageUrl(),
+                getFullImageUrl(saved.getImageUrl()),
                 saved.getCategory().getName(),
                 saved.getBrand().getName()
         );
@@ -124,7 +141,7 @@ public class GlassesService {
                         g.getQuantity(),
                         g.getCategory().getName(),
                         g.getBrand().getName(),
-                        g.getImageUrl(),
+                        getFullImageUrl(g.getImageUrl()),
                         g.isActive()
                 ))
                 .toList();
@@ -133,7 +150,6 @@ public class GlassesService {
     public GlassesAdminResponse updateGlass(Long id, GlassesUpdateRequest req) {
         Glasses g = glassesRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Glass not found"));
-
 
         if (req.name() != null) g.setName(req.name());
         if (req.price() != null) g.setPrice(req.price());
@@ -144,11 +160,7 @@ public class GlassesService {
             g.setQuantity(req.quantity());
         }
         if (req.imageUrl() != null) g.setImageUrl(req.imageUrl());
-
-        // Add this: Update active status if provided
-        if (req.active() != null) {
-            g.setActive(req.active());
-        }
+        if (req.active() != null) g.setActive(req.active());
 
         if (req.categoryId() != null) {
             Category category = categoryRepository.findById(req.categoryId())
@@ -171,11 +183,12 @@ public class GlassesService {
                 saved.getQuantity(),
                 saved.getCategory().getName(),
                 saved.getBrand().getName(),
-                saved.getImageUrl(),
+                getFullImageUrl(saved.getImageUrl()),
                 saved.isActive()
         );
     }
 
+    // KEEP THIS DELETE METHOD!
     public void delete(Long id) {
         Glasses g = glassesRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Glass not found"));

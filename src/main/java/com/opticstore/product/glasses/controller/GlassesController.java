@@ -18,7 +18,7 @@ public class GlassesController {
         this.service = service;
     }
 
-    @GetMapping
+    /*@GetMapping
     public List<GlassesResponse> get(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String brand
@@ -30,6 +30,36 @@ public class GlassesController {
             return service.getByBrand(brand);
         }
         return List.of();
+    }*/
+
+    // In your service or controller, add:
+    @GetMapping
+    public List<GlassesResponse> get(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String brand
+    ) {
+        System.out.println("🔍 Getting glasses...");
+
+        List<GlassesResponse> result;
+        if (category != null) {
+            result = service.getByCategory(category);
+        } else if (brand != null) {
+            result = service.getByBrand(brand);
+        } else {
+            result = List.of();
+        }
+
+        // Debug the first item
+        if (!result.isEmpty()) {
+            GlassesResponse first = result.get(0);
+            System.out.println("🔍 First glass in response:");
+            System.out.println("  ID: " + first.id());
+            System.out.println("  Name: " + first.name());
+            System.out.println("  Image URL: " + first.imageUrl());
+            System.out.println("  Has imageUrl: " + (first.imageUrl() != null));
+        }
+
+        return result;
     }
 
 }

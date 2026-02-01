@@ -25,7 +25,6 @@ public class AdminGlassesController {
     private final CategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
 
-
     public AdminGlassesController(
             GlassesService glassesService,
             CategoryRepository categoryRepository,
@@ -34,13 +33,10 @@ public class AdminGlassesController {
         this.glassesService = glassesService;
         this.categoryRepository = categoryRepository;
         this.brandRepository = brandRepository;
-
     }
-
 
     @PostMapping
     public GlassesResponse create(@RequestBody @Valid GlassesCreateRequest request) {
-
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new RuntimeException("Category not found"));
 
@@ -66,7 +62,7 @@ public class AdminGlassesController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
-        glassesService.delete(id);
+        glassesService.delete(id);  // This should work now!
     }
 }
 

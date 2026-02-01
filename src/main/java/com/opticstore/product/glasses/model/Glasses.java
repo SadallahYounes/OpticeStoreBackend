@@ -17,6 +17,7 @@ public class Glasses extends BaseEntity {
     @Column(nullable = false)
     private BigDecimal price;
 
+    @Column(name = "image_url")
     private String imageUrl;
 
     @ManyToOne
