@@ -10,6 +10,7 @@ public class Brand extends BaseEntity {
     @Column(nullable = false, unique = true)
     private String name;
 
+    @Column(name = "logo_url")
     private String logoUrl;
 
     // getters & setters
