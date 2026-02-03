@@ -62,7 +62,7 @@ public class AdminGlassesController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
-        glassesService.delete(id);  // This should work now!
+        glassesService.delete(id);
     }
 }
 

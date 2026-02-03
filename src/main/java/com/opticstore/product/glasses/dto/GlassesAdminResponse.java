@@ -1,9 +1,13 @@
 package com.opticstore.product.glasses.dto;
 
 import com.opticstore.product.glasses.model.Glasses;
+import com.opticstore.product.glasses.model.GlassesImage;
 import com.opticstore.utils.ImageUrlMapper;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public record GlassesAdminResponse(
         Long id,
@@ -12,14 +16,22 @@ public record GlassesAdminResponse(
         Integer quantity,
         String category,
         String brand,
-        String imageUrl,
+        List<String> imageUrls,
         boolean active
 ) {
     // Factory method that uses ImageUrlMapper
     public static GlassesAdminResponse fromEntity(Glasses glasses, String baseUrl) {
-        String fullImageUrl = glasses.getImageUrl() != null
-                ? baseUrl + glasses.getImageUrl()
-                : null;
+        List<String> fullImageUrls = glasses.getImages().stream()
+                .sorted(Comparator.comparing(GlassesImage::getOrder,
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(image -> {
+                    String imageUrl = image.getImageUrl();
+                    if (imageUrl != null && !imageUrl.startsWith("http://") && !imageUrl.startsWith("https://")) {
+                        return baseUrl + imageUrl;
+                    }
+                    return imageUrl;
+                })
+                .collect(Collectors.toList());
 
         return new GlassesAdminResponse(
                 glasses.getId(),
@@ -28,7 +40,7 @@ public record GlassesAdminResponse(
                 glasses.getQuantity(),
                 glasses.getCategory().getName(),
                 glasses.getBrand().getName(),
-                fullImageUrl,
+                fullImageUrls,
                 glasses.isActive()
         );
     }

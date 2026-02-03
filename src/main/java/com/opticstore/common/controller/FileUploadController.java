@@ -13,9 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/admin/uploads")
@@ -26,10 +24,47 @@ public class FileUploadController {
     private String uploadDir;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Map<String, String> uploadImage(
-            @RequestParam("file") MultipartFile file
+    public List<String> uploadMultipleImages(
+            @RequestParam("files") MultipartFile[] files
     ) throws IOException {
 
+        if (files == null || files.length == 0) {
+            throw new RuntimeException("No files provided");
+        }
+
+        if (files.length > 4) {
+            throw new RuntimeException("Maximum 4 files allowed");
+        }
+
+        List<String> uploadedUrls = new ArrayList<>();
+
+        for (MultipartFile file : files) {
+            if (!file.isEmpty()) {
+                String ext = Objects.requireNonNull(file.getOriginalFilename())
+                        .substring(file.getOriginalFilename().lastIndexOf("."));
+
+                String fileName = UUID.randomUUID() + ext;
+
+                Path uploadPath = Paths.get(uploadDir);
+                if (!Files.exists(uploadPath)) {
+                    Files.createDirectories(uploadPath);
+                }
+
+                Path filePath = uploadPath.resolve(fileName);
+                Files.copy(file.getInputStream(), filePath);
+
+                uploadedUrls.add("/uploads/" + fileName);
+            }
+        }
+
+        return uploadedUrls;
+    }
+
+    // Keep single file upload for backward compatibility
+    @PostMapping(value = "/single", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Map<String, String> uploadSingleImage(
+            @RequestParam("file") MultipartFile file
+    ) throws IOException {
         if (file.isEmpty()) {
             throw new RuntimeException("File is empty");
         }
@@ -47,8 +82,6 @@ public class FileUploadController {
         Path filePath = uploadPath.resolve(fileName);
         Files.copy(file.getInputStream(), filePath);
 
-        return Map.of(
-                "url", "/uploads/" + fileName
-        );
+        return Map.of("url", "/uploads/" + fileName);
     }
 }

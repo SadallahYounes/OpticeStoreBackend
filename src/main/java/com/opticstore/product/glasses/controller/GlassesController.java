@@ -13,26 +13,10 @@ import java.util.List;
 public class GlassesController {
 
     private final GlassesService service;
-
     public GlassesController(GlassesService service) {
         this.service = service;
     }
 
-    /*@GetMapping
-    public List<GlassesResponse> get(
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) String brand
-    ) {
-        if (category != null) {
-            return service.getByCategory(category);
-        }
-        if (brand != null) {
-            return service.getByBrand(brand);
-        }
-        return List.of();
-    }*/
-
-    // In your service or controller, add:
     @GetMapping
     public List<GlassesResponse> get(
             @RequestParam(required = false) String category,
@@ -52,11 +36,6 @@ public class GlassesController {
         // Debug the first item
         if (!result.isEmpty()) {
             GlassesResponse first = result.get(0);
-            System.out.println("🔍 First glass in response:");
-            System.out.println("  ID: " + first.id());
-            System.out.println("  Name: " + first.name());
-            System.out.println("  Image URL: " + first.imageUrl());
-            System.out.println("  Has imageUrl: " + (first.imageUrl() != null));
         }
 
         return result;

@@ -1,11 +1,14 @@
 package com.opticstore.product.glasses.model;
 
+import com.opticstore.common.model.BaseEntity;
 import com.opticstore.product.brand.model.Brand;
 import com.opticstore.product.category.model.Category;
-import com.opticstore.common.model.BaseEntity;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+
 
 @Entity
 @Table(name = "glasses")
@@ -17,8 +20,10 @@ public class Glasses extends BaseEntity {
     @Column(nullable = false)
     private BigDecimal price;
 
-    @Column(name = "image_url")
-    private String imageUrl;
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JoinColumn(name = "glasses_id")
+    @OrderColumn(name = "image_order")
+    private List<GlassesImage> images = new ArrayList<>();
 
     @ManyToOne
     @JoinColumn(name = "category_id", nullable = false)
@@ -34,9 +39,20 @@ public class Glasses extends BaseEntity {
     @Column(nullable = false)
     private boolean active = true;
 
+    // Helper methods for images
+    public void addImage(String imageUrl) {
+        GlassesImage image = new GlassesImage();
+        image.setImageUrl(imageUrl);
+        image.setGlasses(this);
+        this.images.add(image);
+    }
+
+    public void removeImage(GlassesImage image) {
+        this.images.remove(image);
+        image.setGlasses(null);
+    }
+
     // getters & setters
-
-
     public String getName() {
         return name;
     }
@@ -53,12 +69,12 @@ public class Glasses extends BaseEntity {
         this.price = price;
     }
 
-    public String getImageUrl() {
-        return imageUrl;
+    public List<GlassesImage> getImages() {
+        return images;
     }
 
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
+    public void setImages(List<GlassesImage> images) {
+        this.images = images;
     }
 
     public Category getCategory() {

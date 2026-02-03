@@ -9,13 +9,16 @@ import com.opticstore.product.glasses.dto.GlassesCreateRequest;
 import com.opticstore.product.glasses.dto.GlassesResponse;
 import com.opticstore.product.glasses.dto.GlassesUpdateRequest;
 import com.opticstore.product.glasses.model.Glasses;
+import com.opticstore.product.glasses.model.GlassesImage;
+import com.opticstore.product.glasses.repository.GlassesImageRepository;
 import com.opticstore.product.glasses.repository.GlassesRepository;
-import com.opticstore.utils.ImageUrlMapper;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -24,16 +27,19 @@ public class GlassesService {
     private final GlassesRepository glassesRepository;
     private final CategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
+    private final GlassesImageRepository glassesImageRepository;
 
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
 
     public GlassesService(GlassesRepository glassesRepository,
                           CategoryRepository categoryRepository,
-                          BrandRepository brandRepository) {
+                          BrandRepository brandRepository,
+                          GlassesImageRepository glassesImageRepository) {
         this.glassesRepository = glassesRepository;
         this.categoryRepository = categoryRepository;
         this.brandRepository = brandRepository;
+        this.glassesImageRepository = glassesImageRepository;
     }
 
     // Helper method for full image URLs
@@ -57,7 +63,7 @@ public class GlassesService {
                         g.getId(),
                         g.getName(),
                         g.getPrice(),
-                        getFullImageUrl(g.getImageUrl()),
+                        getImageUrls(g),
                         g.getCategory().getName(),
                         g.getBrand().getName()
                 ))
@@ -72,7 +78,7 @@ public class GlassesService {
                         g.getId(),
                         g.getName(),
                         g.getPrice(),
-                        getFullImageUrl(g.getImageUrl()),
+                        getImageUrls(g),
                         g.getCategory().getName(),
                         g.getBrand().getName()
                 ))
@@ -86,11 +92,20 @@ public class GlassesService {
                         g.getId(),
                         g.getName(),
                         g.getPrice(),
-                        getFullImageUrl(g.getImageUrl()),
+                        getImageUrls(g),
                         g.getCategory().getName(),
                         g.getBrand().getName()
                 ))
                 .toList();
+    }
+
+    // Helper method to get image URLs with full URLs
+    private List<String> getImageUrls(Glasses glasses) {
+        return glasses.getImages().stream()
+                .sorted(Comparator.comparing(GlassesImage::getOrder,
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(image -> getFullImageUrl(image.getImageUrl()))
+                .collect(Collectors.toList());
     }
 
     // ============== ADMIN METHODS ==============
@@ -100,13 +115,29 @@ public class GlassesService {
             throw new IllegalArgumentException("Quantity cannot be negative");
         }
 
+        if (request.getImageUrls() == null || request.getImageUrls().isEmpty()) {
+            throw new IllegalArgumentException("At least one image is required");
+        }
+
+        if (request.getImageUrls().size() > 4) {
+            throw new IllegalArgumentException("Maximum 4 images allowed");
+        }
+
         Glasses glasses = new Glasses();
         glasses.setName(request.getName());
         glasses.setPrice(request.getPrice());
-        glasses.setImageUrl(request.getImageUrl());
         glasses.setQuantity(request.getQuantity());
         glasses.setCategory(category);
         glasses.setBrand(brand);
+
+        // Add images with order
+        for (int i = 0; i < request.getImageUrls().size(); i++) {
+            GlassesImage image = new GlassesImage();
+            image.setImageUrl(request.getImageUrls().get(i));
+            image.setOrder(i);
+            image.setGlasses(glasses);
+            glasses.getImages().add(image);
+        }
 
         Glasses saved = glassesRepository.save(glasses);
 
@@ -114,7 +145,7 @@ public class GlassesService {
                 saved.getId(),
                 saved.getName(),
                 saved.getPrice(),
-                getFullImageUrl(saved.getImageUrl()),
+                getImageUrls(saved),
                 saved.getCategory().getName(),
                 saved.getBrand().getName()
         );
@@ -141,7 +172,7 @@ public class GlassesService {
                         g.getQuantity(),
                         g.getCategory().getName(),
                         g.getBrand().getName(),
-                        getFullImageUrl(g.getImageUrl()),
+                        getImageUrls(g),
                         g.isActive()
                 ))
                 .toList();
@@ -159,7 +190,6 @@ public class GlassesService {
             }
             g.setQuantity(req.quantity());
         }
-        if (req.imageUrl() != null) g.setImageUrl(req.imageUrl());
         if (req.active() != null) g.setActive(req.active());
 
         if (req.categoryId() != null) {
@@ -174,6 +204,25 @@ public class GlassesService {
             g.setBrand(brand);
         }
 
+        // Update images if provided
+        if (req.imageUrls() != null) {
+            if (req.imageUrls().size() > 4) {
+                throw new IllegalArgumentException("Maximum 4 images allowed");
+            }
+
+            // Clear existing images
+            g.getImages().clear();
+
+            // Add new images with order
+            for (int i = 0; i < req.imageUrls().size(); i++) {
+                GlassesImage image = new GlassesImage();
+                image.setImageUrl(req.imageUrls().get(i));
+                image.setOrder(i);
+                image.setGlasses(g);
+                g.getImages().add(image);
+            }
+        }
+
         Glasses saved = glassesRepository.save(g);
 
         return new GlassesAdminResponse(
@@ -183,12 +232,11 @@ public class GlassesService {
                 saved.getQuantity(),
                 saved.getCategory().getName(),
                 saved.getBrand().getName(),
-                getFullImageUrl(saved.getImageUrl()),
+                getImageUrls(saved),
                 saved.isActive()
         );
     }
 
-    // KEEP THIS DELETE METHOD!
     public void delete(Long id) {
         Glasses g = glassesRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Glass not found"));

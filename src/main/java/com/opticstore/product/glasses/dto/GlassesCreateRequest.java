@@ -1,25 +1,32 @@
 package com.opticstore.product.glasses.dto;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 
 public class GlassesCreateRequest {
 
-    @NotBlank String name;
+    @NotBlank
+    private String name;
+
     @NotNull @Positive
-    BigDecimal price;
-    @NotBlank String imageUrl;
-    @NotNull Long categoryId;
-    @NotNull Long brandId;
-    @NotNull @Min(0) Integer quantity;
+    private BigDecimal price;
 
-    //setter & getter
+    @NotNull @Size(min = 1, max = 4, message = "You must provide 1 to 4 images")
+    private List<String> imageUrls;
 
+    @NotNull
+    private Long categoryId;
+
+    @NotNull
+    private Long brandId;
+
+    @NotNull @Min(0)
+    private Integer quantity;
+
+    // Getters and setters
     public String getName() {
         return name;
     }
@@ -36,20 +43,12 @@ public class GlassesCreateRequest {
         this.price = price;
     }
 
-    public String getImageUrl() {
-        return imageUrl;
+    public List<String> getImageUrls() {
+        return imageUrls;
     }
 
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
-    }
-
-    public Integer getQuantity() {
-        return quantity;
-    }
-
-    public void setQuantity(Integer quantity) {
-        this.quantity = quantity;
+    public void setImageUrls(List<String> imageUrls) {
+        this.imageUrls = imageUrls;
     }
 
     public Long getCategoryId() {
@@ -68,6 +67,12 @@ public class GlassesCreateRequest {
         this.brandId = brandId;
     }
 
+    public Integer getQuantity() {
+        return quantity;
+    }
 
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
+    }
 }
 
