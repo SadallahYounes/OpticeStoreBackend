@@ -23,9 +23,13 @@ public class Glasses extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @JoinColumn(name = "glasses_id")
-    @OrderColumn(name = "image_order")
+    @OneToMany(
+            mappedBy = "glasses",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
+    @OrderBy("order ASC")
     private List<GlassesImage> images = new ArrayList<>();
 
     @ManyToOne

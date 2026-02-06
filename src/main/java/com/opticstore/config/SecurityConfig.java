@@ -54,15 +54,19 @@ public class SecurityConfig {
                         // PUBLIC
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/glasses/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/brands/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/orders").permitAll()
-
-                        // ADMIN
-                        .requestMatchers(HttpMethod.POST, "/api/glasses/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/brands/**").hasRole("ADMIN")
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
 
+                        // ADMIN
+                        // Allow all HTTP methods for admin endpoints
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                        // These might be redundant but keep them for clarity
+                        .requestMatchers(HttpMethod.POST, "/api/glasses/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/admin/glasses/**").hasRole("ADMIN") // FIXED: added /admin/
+                        .requestMatchers(HttpMethod.POST, "/api/brands/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated()
                 )

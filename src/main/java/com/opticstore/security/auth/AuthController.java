@@ -15,13 +15,11 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
+import tools.jackson.databind.ObjectMapper;
 
 
 import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 
@@ -255,4 +253,60 @@ public class AuthController {
                     .body("Error: " + e.getMessage());
         }
     }
+
+
+    @GetMapping("/debug-token")
+    public ResponseEntity<Map<String, Object>> debugToken(HttpServletRequest request) {
+        Map<String, Object> response = new HashMap<>();
+
+        String authHeader = request.getHeader("Authorization");
+        response.put("hasAuthHeader", authHeader != null);
+
+        if (authHeader != null) {
+            response.put("authHeader", authHeader);
+            response.put("startsWithBearer", authHeader.startsWith("Bearer "));
+        }
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            response.put("tokenLength", token.length());
+
+            try {
+                String username = jwtService.extractUsername(token);
+                response.put("username", username);
+
+                List<String> roles = jwtService.extractRoles(token);
+                response.put("roles", roles);
+
+                // Decode token manually
+                String[] parts = token.split("\\.");
+                if (parts.length == 3) {
+                    String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+                    response.put("payload", payload);
+
+                    // Also parse as JSON for easier reading
+                    ObjectMapper mapper = new ObjectMapper();
+                    Map<String, Object> payloadMap = mapper.readValue(payload, Map.class);
+                    response.put("parsedPayload", payloadMap);
+                }
+
+                // Check if token is valid
+                boolean isValid = jwtService.isTokenValid(token);
+                response.put("tokenValid", isValid);
+
+                // Check expiration
+                Date expiry = jwtService.extractExpiration(token);
+                response.put("expiresAt", expiry);
+                response.put("isExpired", expiry.before(new Date()));
+
+            } catch (Exception e) {
+                response.put("error", e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+
 }

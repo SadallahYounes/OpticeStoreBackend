@@ -198,6 +198,7 @@ public class GlassesService {
                 .toList();
     }
 
+
     public GlassesAdminResponse updateGlass(Long id, GlassesUpdateRequest req) {
         System.out.println("=== UPDATE GLASSES REQUEST ===");
         System.out.println("ID: " + id);
@@ -205,6 +206,10 @@ public class GlassesService {
 
         Glasses g = glassesRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Glasses not found with ID: " + id));
+
+        // ===========================
+        // BASIC VALIDATIONS & FIELDS
+        // ===========================
 
         // Price validation
         if (req.price() != null && req.price().compareTo(BigDecimal.ZERO) <= 0) {
@@ -232,6 +237,7 @@ public class GlassesService {
         if (req.frameColor() != null) g.setFrameColor(req.frameColor());
         if (req.lensColor() != null) g.setLensColor(req.lensColor());
 
+        // Gender
         if (req.gender() != null) {
             applyGender(g, req.gender());
         }
@@ -257,83 +263,93 @@ public class GlassesService {
             g.setBrand(brand);
         }
 
-        // Images - ONLY update if imageUrls are explicitly provided in the request
-        // This fixes the issue where empty image array might be sent
-        if (req.imageUrls() != null && !req.imageUrls().isEmpty()) {
-            System.out.println("Image URLs provided in request. Count: " + req.imageUrls().size());
+        // ===========================
+        // IMAGES - SMART UPDATE (KEEP / ADD)
+        // ===========================
+        System.out.println("Keep Image URLs: " + req.keepImageUrls());
+        System.out.println("New Image URLs: " + req.newImageUrls());
 
-            // Validate image count
-            if (req.imageUrls().size() > 4) {
-                throw new IllegalArgumentException("Maximum 4 images allowed");
+        int totalImages = req.totalImageCount();
+        if (totalImages > 4) {
+            throw new IllegalArgumentException("Maximum 4 images allowed. You have: " + totalImages);
+        }
+
+        boolean willBeActive = req.active() != null ? req.active() : g.isActive();
+        if (totalImages == 0 && willBeActive) {
+            throw new IllegalArgumentException("At least one image is required for active products");
+        }
+
+        System.out.println("Current images in database: " + g.getImages().size());
+
+        // ---- KEEP images ----
+        if (req.keepImageUrls() != null) {
+            List<GlassesImage> imagesToRemove = new ArrayList<>();
+
+            for (GlassesImage existingImage : g.getImages()) {
+                String existingUrl = normalizeUrl(existingImage.getImageUrl());
+
+                boolean shouldKeep = req.keepImageUrls().stream()
+                        .map(this::normalizeUrl)
+                        .anyMatch(existingUrl::equals);
+
+                if (!shouldKeep) {
+                    imagesToRemove.add(existingImage);
+                }
             }
 
-            System.out.println("Current images in database: " + g.getImages().size());
+            if (!imagesToRemove.isEmpty()) {
+                System.out.println("Removing " + imagesToRemove.size() + " images...");
+                g.getImages().removeAll(imagesToRemove);
+                glassesImageRepository.deleteAll(imagesToRemove);
+            }
+        } else {
+            // Remove all if keep list is null
+            if (!g.getImages().isEmpty()) {
+                System.out.println("Removing all existing images...");
+                glassesImageRepository.deleteAll(g.getImages());
+                g.getImages().clear();
+            }
+        }
 
-            // Prepare new image URLs (remove base URL if present)
-            List<String> newImageUrls = new ArrayList<>();
-            for (String url : req.imageUrls()) {
-                if (url == null || url.trim().isEmpty()) {
-                    continue;
-                }
+        // ---- ADD new images ----
+        if (req.newImageUrls() != null && !req.newImageUrls().isEmpty()) {
+            int currentMaxOrder = g.getImages().stream()
+                    .mapToInt(GlassesImage::getOrder)
+                    .max()
+                    .orElse(-1);
+
+            for (int i = 0; i < req.newImageUrls().size(); i++) {
+                String url = req.newImageUrls().get(i);
+                if (url == null || url.trim().isEmpty()) continue;
 
                 String processedUrl = url.trim();
                 if (baseUrl != null && processedUrl.startsWith(baseUrl)) {
                     processedUrl = processedUrl.substring(baseUrl.length());
                 }
-                newImageUrls.add(processedUrl);
+
+                GlassesImage image = new GlassesImage();
+                image.setImageUrl(processedUrl);
+                image.setOrder(currentMaxOrder + i + 1);
+                image.setGlasses(g);
+                g.getImages().add(image);
             }
-
-            // Get current image URLs
-            List<String> currentImageUrls = g.getImages().stream()
-                    .sorted(Comparator.comparingInt(GlassesImage::getOrder))
-                    .map(GlassesImage::getImageUrl)
-                    .toList();
-
-            System.out.println("Current image URLs: " + currentImageUrls);
-            System.out.println("New image URLs: " + newImageUrls);
-
-            // Check if images actually changed
-            boolean imagesChanged = !currentImageUrls.equals(newImageUrls);
-
-            if (imagesChanged) {
-                System.out.println("Images have changed, updating...");
-
-                // Clear existing images from database first
-                if (!g.getImages().isEmpty()) {
-                    glassesImageRepository.deleteAll(g.getImages());
-                    g.getImages().clear();
-                }
-
-                // Add new images
-                for (int i = 0; i < newImageUrls.size(); i++) {
-                    GlassesImage image = new GlassesImage();
-                    image.setImageUrl(newImageUrls.get(i));
-                    image.setOrder(i);
-                    image.setGlasses(g);
-                    g.getImages().add(image);
-                }
-
-                System.out.println("Added " + g.getImages().size() + " new images");
-            } else {
-                System.out.println("Images unchanged, skipping image update");
-            }
-        } else if (req.imageUrls() != null && req.imageUrls().isEmpty()) {
-            // If empty array is sent, validate for active products
-            if (g.isActive() && (req.active() == null || req.active())) {
-                throw new IllegalArgumentException("At least one image is required for active products");
-            }
-            System.out.println("Empty image array provided, keeping existing images");
-        } else {
-            // imageUrls is null - don't touch existing images
-            System.out.println("No image URLs provided in request, keeping existing images");
         }
 
+        // ---- REORDER images ----
+        List<GlassesImage> orderedImages = g.getImages().stream()
+                .sorted(Comparator.comparingInt(GlassesImage::getOrder))
+                .collect(Collectors.toList());
+
+        for (int i = 0; i < orderedImages.size(); i++) {
+            orderedImages.get(i).setOrder(i);
+        }
+
+        System.out.println("Final image count: " + g.getImages().size());
+
         try {
-            // Save and return response
             Glasses saved = glassesRepository.save(g);
             System.out.println("=== UPDATE SUCCESSFUL ===");
             System.out.println("Successfully updated glasses ID: " + saved.getId());
-            System.out.println("Final image count: " + saved.getImages().size());
 
             return GlassesAdminResponse.fromEntity(saved, baseUrl);
         } catch (Exception e) {
@@ -343,6 +359,25 @@ public class GlassesService {
             throw e;
         }
     }
+
+    private String normalizeUrl(String url) {
+        if (url == null) return "";
+        url = url.trim();
+
+        if (baseUrl != null && url.startsWith(baseUrl)) {
+            url = url.substring(baseUrl.length());
+        }
+
+        if (!url.startsWith("/") && !url.startsWith("http")) {
+            url = "/" + url;
+        }
+
+        return url;
+    }
+
+
+
+
 
     public void updateStock(Long glassesId, int newQuantity) {
         if (newQuantity < 0) {

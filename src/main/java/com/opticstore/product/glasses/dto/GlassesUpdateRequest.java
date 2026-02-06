@@ -10,7 +10,10 @@ public record GlassesUpdateRequest(
         Integer quantity,
         Long categoryId,
         Long brandId,
-        List<String> imageUrls,
+
+        // CHANGE: Separate keep vs new images
+        List<String> keepImageUrls,      // URLs of existing images to keep
+        List<String> newImageUrls,       // URLs of new images to add
         Boolean active,
 
         String frameMaterial,
@@ -19,10 +22,15 @@ public record GlassesUpdateRequest(
         String lensColor,
         String gender,
 
-        // Measurements as String
         String frameWidth,
         String bridgeWidth,
         String templeLength,
         String lensWidth,
         String lensHeight
-) {}
+) {
+    // Helper method to get total images (keep + new)
+    public int totalImageCount() {
+        return (keepImageUrls != null ? keepImageUrls.size() : 0) +
+                (newImageUrls != null ? newImageUrls.size() : 0);
+    }
+}
