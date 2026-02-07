@@ -90,7 +90,6 @@ public class GlassesService {
         }
     }
 
-
     private void applyGender(Glasses glasses, String gender) {
         if (gender == null) return;
 
@@ -99,6 +98,21 @@ public class GlassesService {
         } catch (IllegalArgumentException e) {
             glasses.setGender(Glasses.Gender.UNISEX);
         }
+    }
+
+    private String normalizeUrl(String url) {
+        if (url == null) return "";
+        url = url.trim();
+
+        if (baseUrl != null && url.startsWith(baseUrl)) {
+            url = url.substring(baseUrl.length());
+        }
+
+        if (!url.startsWith("/") && !url.startsWith("http")) {
+            url = "/" + url;
+        }
+
+        return url;
     }
 
     // ===================== CUSTOMER METHODS =====================
@@ -134,11 +148,28 @@ public class GlassesService {
         return GlassesResponse.fromEntity(glasses, imageUrlMapper);
     }
 
+    public List<GlassesResponse> getByBrandId(Long brandId) {
+        return glassesRepository.findByBrandIdAndActiveTrue(brandId).stream()
+                .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
+                .toList();
+    }
+
+    public List<GlassesResponse> getByCategoryAndBrand(String category, String brand) {
+        return glassesRepository.findByCategorySlugAndBrandNameIgnoreCaseAndActiveTrue(category, brand).stream()
+                .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
+                .toList();
+    }
+
+    public List<GlassesResponse> getAllActive() {
+        return glassesRepository.findByActiveTrue().stream()
+                .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
+                .toList();
+    }
+
     // ===================== ADMIN METHODS =====================
 
     public GlassesResponse create(GlassesCreateRequest request, Category category, Brand brand) {
-
-        //  Price validation
+        // Price validation
         if (request.getPrice() == null || request.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Price must be positive");
         }
@@ -148,7 +179,7 @@ public class GlassesService {
             throw new IllegalArgumentException("Quantity cannot be negative");
         }
 
-        //  Images validation
+        // Images validation
         if (request.getImageUrls() == null || request.getImageUrls().isEmpty()) {
             throw new IllegalArgumentException("At least one image is required");
         }
@@ -197,7 +228,6 @@ public class GlassesService {
                 .map(g -> GlassesAdminResponse.fromEntity(g, baseUrl))
                 .toList();
     }
-
 
     public GlassesAdminResponse updateGlass(Long id, GlassesUpdateRequest req) {
         System.out.println("=== UPDATE GLASSES REQUEST ===");
@@ -360,25 +390,6 @@ public class GlassesService {
         }
     }
 
-    private String normalizeUrl(String url) {
-        if (url == null) return "";
-        url = url.trim();
-
-        if (baseUrl != null && url.startsWith(baseUrl)) {
-            url = url.substring(baseUrl.length());
-        }
-
-        if (!url.startsWith("/") && !url.startsWith("http")) {
-            url = "/" + url;
-        }
-
-        return url;
-    }
-
-
-
-
-
     public void updateStock(Long glassesId, int newQuantity) {
         if (newQuantity < 0) {
             throw new IllegalArgumentException("Quantity cannot be negative");
@@ -400,5 +411,12 @@ public class GlassesService {
 
         g.setActive(false);
         glassesRepository.save(g);
+    }
+
+    public List<GlassesResponse> getByBrandIdAndCategory(Long brandId, String gender) {
+        return glassesRepository.findByBrandIdAndGenderAndActiveTrue(brandId, gender)
+                .stream()
+                .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
+                .toList();
     }
 }

@@ -21,4 +21,9 @@ public class BrandController {
     public List<BrandResponse> getAll() {
         return service.getAll();
     }
+
+    @GetMapping("/{id}")
+    public BrandResponse getById(@PathVariable Long id) {
+        return service.getById(id);
+    }
 }

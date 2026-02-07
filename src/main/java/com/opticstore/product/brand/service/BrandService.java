@@ -1,6 +1,7 @@
 package com.opticstore.product.brand.service;
 
 import com.opticstore.product.brand.dto.BrandResponse;
+import com.opticstore.product.brand.model.Brand;
 import com.opticstore.product.brand.repository.BrandRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,7 +14,7 @@ public class BrandService {
     private final BrandRepository repository;
 
     @Value("${app.base-url:http://localhost:8080}")
-    private String baseUrl;  // Use same approach as glasses
+    private String baseUrl;
 
     public BrandService(BrandRepository repository) {
         this.repository = repository;
@@ -35,8 +36,20 @@ public class BrandService {
                 .map(b -> new BrandResponse(
                         b.getId(),
                         b.getName(),
-                        getFullLogoUrl(b.getLogoUrl())  // Use helper method
+                        getFullLogoUrl(b.getLogoUrl())
                 ))
                 .toList();
+    }
+
+    // ADD THIS METHOD
+    public BrandResponse getById(Long id) {
+        Brand brand = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Brand not found with id: " + id));
+
+        return new BrandResponse(
+                brand.getId(),
+                brand.getName(),
+                getFullLogoUrl(brand.getLogoUrl())
+        );
     }
 }
