@@ -19,8 +19,8 @@ public class GlassesCreateRequest {
     @Size(min = 1, max = 4, message = "You must provide 1 to 4 images")
     private List<String> imageUrls;
 
-    @NotNull
-    private Long categoryId;
+    // CHANGE: Make category optional
+    private Long categoryId; // For sunglasses, reading glasses, etc.
 
     @NotNull
     private Long brandId;
@@ -32,6 +32,10 @@ public class GlassesCreateRequest {
     private String lensMaterial;
     private String frameColor;
     private String lensColor;
+
+    // CHANGE: Make gender required
+    @NotBlank(message = "Gender is required")
+    @Pattern(regexp = "MEN|WOMEN|UNISEX", message = "Gender must be MEN, WOMEN, or UNISEX")
     private String gender;
 
     // Measurements as String
@@ -41,8 +45,7 @@ public class GlassesCreateRequest {
     private String lensWidth;
     private String lensHeight;
 
-
-    // getters and setters
+    // getters and setters...
 
 
     public String getName() {
@@ -85,20 +88,20 @@ public class GlassesCreateRequest {
         this.categoryId = categoryId;
     }
 
-    public Integer getQuantity() {
-        return quantity;
-    }
-
-    public void setQuantity(Integer quantity) {
-        this.quantity = quantity;
-    }
-
     public Long getBrandId() {
         return brandId;
     }
 
     public void setBrandId(Long brandId) {
         this.brandId = brandId;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
     }
 
     public String getFrameMaterial() {
@@ -180,5 +183,4 @@ public class GlassesCreateRequest {
     public void setLensHeight(String lensHeight) {
         this.lensHeight = lensHeight;
     }
-
 }

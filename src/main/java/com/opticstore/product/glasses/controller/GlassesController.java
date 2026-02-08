@@ -16,21 +16,22 @@ import java.util.List;
 public class GlassesController {
 
     private final GlassesService service;
+
     public GlassesController(GlassesService service) {
         this.service = service;
     }
 
     @GetMapping
     public List<GlassesResponse> get(
-            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String gender,
             @RequestParam(required = false) String brand
     ) {
         List<GlassesResponse> result;
-        if (category != null && brand != null) {
-            // Get by both category and brand (using brand NAME)
-            result = service.getByCategoryAndBrand(category, brand);
-        } else if (category != null) {
-            result = service.getByCategory(category);
+
+        if (gender != null && brand != null) {
+            result = service.getByGenderAndBrand(gender, brand);
+        } else if (gender != null) {
+            result = service.getByGender(gender);
         } else if (brand != null) {
             result = service.getByBrand(brand);
         } else {
@@ -46,12 +47,12 @@ public class GlassesController {
         return service.getByBrandId(brandId);
     }
 
-    @GetMapping("/brand/{brandId}/category/{category}")
-    public List<GlassesResponse> getByBrandIdAndCategory(
+    @GetMapping("/brand/{brandId}/gender/{gender}")
+    public List<GlassesResponse> getByBrandIdAndGender(
             @PathVariable Long brandId,
-            @PathVariable String category
+            @PathVariable String gender
     ) {
-        return service.getByBrandIdAndCategory(brandId, category);
+        return service.getByBrandIdAndGender(brandId, gender);
     }
 
     @GetMapping("/{id}")

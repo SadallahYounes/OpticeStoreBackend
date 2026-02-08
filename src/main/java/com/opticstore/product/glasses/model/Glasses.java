@@ -32,9 +32,11 @@ public class Glasses extends BaseEntity {
     @OrderBy("order ASC")
     private List<GlassesImage> images = new ArrayList<>();
 
+    // CHANGE: Update category relationship to be nullable or remove if not needed
+    // Keep category for other types (Sunglasses, Reading Glasses, etc.)
     @ManyToOne
-    @JoinColumn(name = "category_id", nullable = false)
-    private Category category;
+    @JoinColumn(name = "category_id")
+    private Category category; // Now nullable since gender handles MEN/WOMEN
 
     @ManyToOne
     @JoinColumn(name = "brand_id", nullable = false)
@@ -59,7 +61,9 @@ public class Glasses extends BaseEntity {
     @Column(name = "lens_color", length = 50)
     private String lensColor;
 
+    // CHANGE: Make gender NOT NULL and add validation
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Gender gender = Gender.UNISEX;
 
     @Column(name = "frame_width", precision = 4, scale = 1)
@@ -82,7 +86,7 @@ public class Glasses extends BaseEntity {
         MEN, WOMEN, UNISEX
     }
 
-    // getters and setters
+    // getters and setters...
 
     public String getName() {
         return name;
@@ -212,20 +216,20 @@ public class Glasses extends BaseEntity {
         this.templeLength = templeLength;
     }
 
-    public BigDecimal getLensWidth() {
-        return lensWidth;
-    }
-
-    public void setLensWidth(BigDecimal lensWidth) {
-        this.lensWidth = lensWidth;
-    }
-
     public BigDecimal getLensHeight() {
         return lensHeight;
     }
 
     public void setLensHeight(BigDecimal lensHeight) {
         this.lensHeight = lensHeight;
+    }
+
+    public BigDecimal getLensWidth() {
+        return lensWidth;
+    }
+
+    public void setLensWidth(BigDecimal lensWidth) {
+        this.lensWidth = lensWidth;
     }
 
     // Helper methods

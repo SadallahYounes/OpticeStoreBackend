@@ -8,7 +8,7 @@ public record GlassesUpdateRequest(
         BigDecimal price,
         String description,
         Integer quantity,
-        Long categoryId,
+        Long categoryId, // Optional now
         Long brandId,
 
         // CHANGE: Separate keep vs new images
@@ -20,7 +20,7 @@ public record GlassesUpdateRequest(
         String lensMaterial,
         String frameColor,
         String lensColor,
-        String gender,
+        String gender, // Required now
 
         String frameWidth,
         String bridgeWidth,

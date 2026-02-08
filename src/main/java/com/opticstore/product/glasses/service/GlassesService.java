@@ -91,12 +91,14 @@ public class GlassesService {
     }
 
     private void applyGender(Glasses glasses, String gender) {
-        if (gender == null) return;
+        if (gender == null || gender.trim().isEmpty()) {
+            throw new IllegalArgumentException("Gender cannot be null or empty");
+        }
 
         try {
             glasses.setGender(Glasses.Gender.valueOf(gender.toUpperCase()));
         } catch (IllegalArgumentException e) {
-            glasses.setGender(Glasses.Gender.UNISEX);
+            throw new IllegalArgumentException("Invalid gender: " + gender + ". Must be MEN, WOMEN, or UNISEX");
         }
     }
 
@@ -117,11 +119,16 @@ public class GlassesService {
 
     // ===================== CUSTOMER METHODS =====================
 
-    public List<GlassesResponse> getByCategory(String slug) {
-        return glassesRepository.findByCategory_Slug(slug).stream()
-                .filter(Glasses::isActive)
-                .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
-                .toList();
+
+    public List<GlassesResponse> getByGender(String genderStr) {
+        try {
+            Glasses.Gender gender = Glasses.Gender.valueOf(genderStr.toUpperCase());
+            return glassesRepository.findByGenderAndActiveTrue(gender).stream()
+                    .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
+                    .toList();
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid gender: " + genderStr);
+        }
     }
 
     public List<GlassesResponse> getByBrand(String brand) {
@@ -154,10 +161,16 @@ public class GlassesService {
                 .toList();
     }
 
-    public List<GlassesResponse> getByCategoryAndBrand(String category, String brand) {
-        return glassesRepository.findByCategorySlugAndBrandNameIgnoreCaseAndActiveTrue(category, brand).stream()
-                .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
-                .toList();
+
+    public List<GlassesResponse> getByGenderAndBrand(String genderStr, String brand) {
+        try {
+            Glasses.Gender gender = Glasses.Gender.valueOf(genderStr.toUpperCase());
+            return glassesRepository.findByGenderAndBrandNameIgnoreCaseAndActiveTrue(gender, brand).stream()
+                    .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
+                    .toList();
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid gender: " + genderStr);
+        }
     }
 
     public List<GlassesResponse> getAllActive() {
@@ -165,6 +178,7 @@ public class GlassesService {
                 .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
                 .toList();
     }
+
 
     // ===================== ADMIN METHODS =====================
 
@@ -210,6 +224,12 @@ public class GlassesService {
         glasses.setLensWidth(parseDecimal(request.getLensWidth(), "lens width"));
         glasses.setLensHeight(parseDecimal(request.getLensHeight(), "lens height"));
 
+
+        if (request.getGender() == null || request.getGender().trim().isEmpty()) {
+            throw new IllegalArgumentException("Gender is required");
+        }
+        applyGender(glasses, request.getGender());
+
         // Images
         for (int i = 0; i < request.getImageUrls().size(); i++) {
             GlassesImage image = new GlassesImage();
@@ -228,6 +248,8 @@ public class GlassesService {
                 .map(g -> GlassesAdminResponse.fromEntity(g, baseUrl))
                 .toList();
     }
+
+
 
     public GlassesAdminResponse updateGlass(Long id, GlassesUpdateRequest req) {
         System.out.println("=== UPDATE GLASSES REQUEST ===");
@@ -413,10 +435,15 @@ public class GlassesService {
         glassesRepository.save(g);
     }
 
-    public List<GlassesResponse> getByBrandIdAndCategory(Long brandId, String gender) {
-        return glassesRepository.findByBrandIdAndGenderAndActiveTrue(brandId, gender)
-                .stream()
-                .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
-                .toList();
+    public List<GlassesResponse> getByBrandIdAndGender(Long brandId, String genderStr) {
+        try {
+            Glasses.Gender gender = Glasses.Gender.valueOf(genderStr.toUpperCase());
+            return glassesRepository.findByBrandIdAndGenderAndActiveTrue(brandId, gender)
+                    .stream()
+                    .map(g -> GlassesResponse.fromEntity(g, imageUrlMapper))
+                    .toList();
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid gender: " + genderStr);
+        }
     }
 }

@@ -13,6 +13,8 @@ public class Brand extends BaseEntity {
     @Column(name = "logo_url")
     private String logoUrl;
 
+
+
     // getters & setters
 
     public String getName() {

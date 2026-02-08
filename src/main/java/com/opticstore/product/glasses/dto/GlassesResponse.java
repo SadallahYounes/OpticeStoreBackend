@@ -14,7 +14,7 @@ public record GlassesResponse(
         String name,
         BigDecimal price,
         List<String> imageUrls,
-        String category,
+        String category,    // For other categories (sunglasses, etc.)
         String brand,
         String description,
         Integer quantity,
@@ -25,7 +25,7 @@ public record GlassesResponse(
         String lensMaterial,
         String frameColor,
         String lensColor,
-        String gender,
+        String gender,      // This is now the main gender field
         String frameWidth,
         String bridgeWidth,
         String templeLength,
@@ -42,12 +42,15 @@ public record GlassesResponse(
                 .map(image -> mapper.toFullUrl(image.getImageUrl()))
                 .toList();
 
+        // CHANGE: Handle nullable category
+        String categoryName = glasses.getCategory() != null ? glasses.getCategory().getName() : null;
+
         return new GlassesResponse(
                 glasses.getId(),
                 glasses.getName(),
                 glasses.getPrice(),
                 fullImageUrls,
-                glasses.getCategory().getName(),
+                categoryName,
                 glasses.getBrand().getName(),
                 glasses.getDescription(),
                 glasses.getQuantity(),
@@ -57,7 +60,7 @@ public record GlassesResponse(
                 glasses.getLensMaterial(),
                 glasses.getFrameColor(),
                 glasses.getLensColor(),
-                glasses.getGender() != null ? glasses.getGender().name() : null,
+                glasses.getGender().name(), // Now guaranteed not null
                 toString(glasses.getFrameWidth()),
                 toString(glasses.getBridgeWidth()),
                 toString(glasses.getTempleLength()),

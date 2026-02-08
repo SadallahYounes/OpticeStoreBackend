@@ -18,7 +18,8 @@ public record GlassesAdminResponse(
         String category,
         String brand,
         List<String> imageUrls,
-        boolean active
+        boolean active,
+        String gender
 ) {
     // Factory method that uses ImageUrlMapper
     public static GlassesAdminResponse fromEntity(Glasses glasses, String baseUrl) {
@@ -64,10 +65,11 @@ public record GlassesAdminResponse(
                 glasses.getName(),
                 glasses.getPrice(),
                 glasses.getQuantity(),
-                glasses.getCategory().getName(),
+                glasses.getCategory() != null ? glasses.getCategory().getName() : null, // Handle nullable category
                 glasses.getBrand().getName(),
                 fullImageUrls,
-                glasses.isActive()
+                glasses.isActive(),
+                glasses.getGender() != null ? glasses.getGender().name() : "UNISEX"
         );
     }
 }
