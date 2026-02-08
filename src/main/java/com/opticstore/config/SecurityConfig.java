@@ -39,7 +39,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
-                                           JwtAuthenticationFilter jwtAuthenticationFilter ) throws Exception {
+                                           JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
 
         http
                 .csrf(csrf -> csrf.disable())
@@ -48,25 +48,27 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-
-
+                        // Allow OPTIONS requests
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // PUBLIC
+
+                        // PUBLIC ENDPOINTS
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/glasses/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/brands/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/brands/**").permitAll() // Allow GET for brands
                         .requestMatchers(HttpMethod.POST, "/api/orders").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
 
-                        // ADMIN
-                        // Allow all HTTP methods for admin endpoints
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // ADMIN ENDPOINTS - BRANDS
+                        .requestMatchers(HttpMethod.POST, "/api/admin/uploads").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/admin/uploads/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/admin/brands/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/brands/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/admin/brands/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/admin/brands/**").hasRole("ADMIN")
 
-                        // These might be redundant but keep them for clarity
-                        .requestMatchers(HttpMethod.POST, "/api/glasses/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/admin/glasses/**").hasRole("ADMIN") // FIXED: added /admin/
-                        .requestMatchers(HttpMethod.POST, "/api/brands/**").hasRole("ADMIN")
+                        // ADMIN ENDPOINTS - OTHER
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN") // This covers other admin endpoints
 
                         .anyRequest().authenticated()
                 )
