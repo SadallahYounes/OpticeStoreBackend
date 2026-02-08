@@ -1,5 +1,8 @@
 package com.opticstore.order.service;
 
+import com.opticstore.notifications.model.NotificationPriority;
+import com.opticstore.notifications.model.NotificationType;
+import com.opticstore.notifications.service.NotificationService;
 import com.opticstore.order.dto.*;
 import com.opticstore.order.history.service.OrderStatusHistoryService;
 import com.opticstore.order.mapper.AdminOrderMapper;
@@ -22,13 +25,16 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryService statusHistoryService;
+    private final NotificationService notificationService;
 
     public OrderService(
             OrderRepository orderRepository,
-            OrderStatusHistoryService statusHistoryService
+            OrderStatusHistoryService statusHistoryService,
+            NotificationService notificationService
     ) {
         this.orderRepository = orderRepository;
         this.statusHistoryService = statusHistoryService;
+        this.notificationService = notificationService;
     }
 
     public Order createOrder(OrderRequest request) {
@@ -61,12 +67,26 @@ public class OrderService {
 
         order.setTotal(total);
 
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+
+        //  Notification: new order created
+        notificationService.createNotification(
+                "New Order Received",
+                String.format(
+                        "Order #%d from %s %s",
+                        savedOrder.getId(),
+                        savedOrder.getFirstName(),
+                        savedOrder.getLastName()
+                ),
+                NotificationType.ORDER_CREATED,
+                NotificationPriority.HIGH,
+                savedOrder
+        );
+
+        return savedOrder;
     }
 
-
-    //GET ADMIN ORDERS ...
-
+    // GET ADMIN ORDERS
     public Page<AdminOrderResponse> getAdminOrders(
             String search,
             OrderStatus status,
@@ -80,7 +100,6 @@ public class OrderService {
                 pageable
         ).map(AdminOrderMapper::toResponse);
     }
-
 
     public OrderDetailsResponse getOrderDetails(Long id) {
 
@@ -130,6 +149,20 @@ public class OrderService {
                     oldStatus,
                     newStatus,
                     adminUsername
+            );
+
+            // 🔔 Notification: order status changed
+            notificationService.createNotification(
+                    "Order Status Updated",
+                    String.format(
+                            "Order #%d changed from %s to %s",
+                            order.getId(),
+                            oldStatus,
+                            newStatus
+                    ),
+                    NotificationType.ORDER_STATUS_CHANGED,
+                    NotificationPriority.MEDIUM,
+                    order
             );
         }
 

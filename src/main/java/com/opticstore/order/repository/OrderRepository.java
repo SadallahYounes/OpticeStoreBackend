@@ -62,15 +62,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByStatus(OrderStatus status);
 
-    // FIXED: Return BigDecimal instead of Double
+    //  Return BigDecimal instead of Double
     @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.createdAt BETWEEN :start AND :end")
     BigDecimal sumRevenueBetweenDates(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    // FIXED: Return BigDecimal instead of Double
+    //Return BigDecimal instead of Double
     @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.createdAt >= :date")
     BigDecimal sumRevenueAfterDate(@Param("date") LocalDateTime date);
 
-    // Optional: Add status filter to revenue queries
+    // Add status filter to revenue queries
     @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.status = :status AND o.createdAt BETWEEN :start AND :end")
     BigDecimal sumRevenueByStatusBetweenDates(
             @Param("status") OrderStatus status,
@@ -82,7 +82,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query(value = "SELECT COUNT(DISTINCT phone) FROM orders", nativeQuery = true)
     Long countUniqueCustomers();
 
-    // Or if you want to count by unique phone + name combination
+    //  count by unique phone + name combination
     @Query(value = "SELECT COUNT(DISTINCT CONCAT(first_name, ' ', last_name, ' ', phone)) FROM orders", nativeQuery = true)
     Long countUniqueCustomerIdentities();
 }
