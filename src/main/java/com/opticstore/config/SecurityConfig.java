@@ -68,6 +68,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/admin/brands/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/admin/analytics/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/notifications/**").hasRole("ADMIN")
+                        .requestMatchers("/api/notifications/sse/**").permitAll()
+
                         // ADMIN ENDPOINTS - OTHER
                         .requestMatchers("/api/admin/**").hasRole("ADMIN") // This covers other admin endpoints
 
