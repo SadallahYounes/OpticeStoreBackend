@@ -624,14 +624,25 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             return new DateRange(LocalDate.now().minusMonths(1), LocalDate.now());
         }
 
-        if (request.getPeriod() != TimePeriod.CUSTOM &&
-                request.getStartDate() == null && request.getEndDate() == null) {
-            return calculateDateRange(request.getPeriod());
+        // Handle CUSTOM period
+        if (request.getPeriod() == TimePeriod.CUSTOM) {
+            // Validate custom dates
+            if (request.getStartDate() != null && request.getEndDate() != null) {
+                // Ensure end date is not before start date
+                if (request.getEndDate().isBefore(request.getStartDate())) {
+                    // Swap dates if they're in wrong order
+                    return new DateRange(request.getEndDate(), request.getStartDate());
+                }
+                return new DateRange(request.getStartDate(), request.getEndDate());
+            } else {
+                // If CUSTOM period but dates not provided, default to last 30 days
+                System.out.println("CUSTOM period selected but dates not provided. Defaulting to last 30 days.");
+                return new DateRange(LocalDate.now().minusDays(30), LocalDate.now());
+            }
         }
-        return new DateRange(
-                request.getStartDate() != null ? request.getStartDate() : LocalDate.now().minusMonths(1),
-                request.getEndDate() != null ? request.getEndDate() : LocalDate.now()
-        );
+
+        // Handle all other pre-defined periods
+        return calculateDateRange(request.getPeriod());
     }
 
     private DateRange getDateRangeFromFilter(AnalyticsFilter filter) {
@@ -639,14 +650,18 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             return new DateRange(LocalDate.now().minusMonths(1), LocalDate.now());
         }
 
-        if (filter.getPeriod() != TimePeriod.CUSTOM &&
-                filter.getStartDate() == null && filter.getEndDate() == null) {
-            return calculateDateRange(filter.getPeriod());
+        // Handle CUSTOM period specifically
+        if (filter.getPeriod() == TimePeriod.CUSTOM) {
+            if (filter.getStartDate() != null && filter.getEndDate() != null) {
+                return new DateRange(filter.getStartDate(), filter.getEndDate());
+            } else {
+                // If CUSTOM but dates are null, default to last 30 days
+                return new DateRange(LocalDate.now().minusDays(30), LocalDate.now());
+            }
         }
-        return new DateRange(
-                filter.getStartDate() != null ? filter.getStartDate() : LocalDate.now().minusMonths(1),
-                filter.getEndDate() != null ? filter.getEndDate() : LocalDate.now()
-        );
+
+        // Handle pre-defined periods
+        return calculateDateRange(filter.getPeriod());
     }
 
     private DateRange calculateDateRange(TimePeriod period) {
