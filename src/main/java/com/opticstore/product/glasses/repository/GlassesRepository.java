@@ -5,10 +5,12 @@ import com.opticstore.product.glasses.model.Glasses;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 
+@Repository
 public interface GlassesRepository extends JpaRepository<Glasses, Long> {
 
     // deprecated
@@ -41,4 +43,18 @@ public interface GlassesRepository extends JpaRepository<Glasses, Long> {
     // Keep this for admin purposes if needed
     @Query("SELECT g FROM Glasses g WHERE g.category.slug = :categorySlug AND g.active = true")
     List<Glasses> findByCategorySlugAndActiveTrue(@Param("categorySlug") String categorySlug);
+
+    // ==== NEW ANALYTICS QUERIES ====
+
+    // Find low stock products - USING JPQL (this one is fine)
+    @Query("SELECT g FROM Glasses g WHERE g.quantity <= :threshold AND g.active = true")
+    List<Glasses> findLowStockProducts(@Param("threshold") int threshold);
+
+    // Get total stock value - USING NATIVE QUERY
+    @Query(value = "SELECT COALESCE(SUM(g.price * g.quantity), 0) as total_value, " +
+            "COUNT(g.id) as product_count " +
+            "FROM glasses g " +
+            "WHERE g.active = true",
+            nativeQuery = true)
+    List<Object[]> getTotalStockValue();
 }

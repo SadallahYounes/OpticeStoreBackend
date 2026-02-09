@@ -32,11 +32,10 @@ public class Glasses extends BaseEntity {
     @OrderBy("order ASC")
     private List<GlassesImage> images = new ArrayList<>();
 
-    // CHANGE: Update category relationship to be nullable or remove if not needed
-    // Keep category for other types (Sunglasses, Reading Glasses, etc.)
+
     @ManyToOne
     @JoinColumn(name = "category_id")
-    private Category category; // Now nullable since gender handles MEN/WOMEN
+    private Category category;
 
     @ManyToOne
     @JoinColumn(name = "brand_id", nullable = false)

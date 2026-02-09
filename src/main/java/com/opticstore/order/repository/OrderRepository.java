@@ -8,11 +8,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
+@Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("""
@@ -62,11 +65,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByStatus(OrderStatus status);
 
-    //  Return BigDecimal instead of Double
+    // Return BigDecimal instead of Double
     @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.createdAt BETWEEN :start AND :end")
     BigDecimal sumRevenueBetweenDates(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    //Return BigDecimal instead of Double
+    // Return BigDecimal instead of Double
     @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.createdAt >= :date")
     BigDecimal sumRevenueAfterDate(@Param("date") LocalDateTime date);
 
@@ -78,12 +81,64 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             @Param("end") LocalDateTime end
     );
 
-
     @Query(value = "SELECT COUNT(DISTINCT phone) FROM orders", nativeQuery = true)
     Long countUniqueCustomers();
 
-    //  count by unique phone + name combination
+    // count by unique phone + name combination
     @Query(value = "SELECT COUNT(DISTINCT CONCAT(first_name, ' ', last_name, ' ', phone)) FROM orders", nativeQuery = true)
     Long countUniqueCustomerIdentities();
-}
 
+    // ==== NEW ANALYTICS QUERIES (FIXED VERSIONS) ====
+
+    // Get daily revenue with order count - USING NATIVE QUERY
+    @Query(value = "SELECT DATE(o.created_at) as date, " +
+            "COALESCE(SUM(o.total), 0) as revenue, " +
+            "COUNT(o.id) as orders " +
+            "FROM orders o " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "GROUP BY DATE(o.created_at) " +
+            "ORDER BY DATE(o.created_at)",
+            nativeQuery = true)
+    List<Object[]> getDailyRevenueBetweenDates(@Param("start") LocalDateTime start,
+                                               @Param("end") LocalDateTime end);
+
+    // Get monthly revenue - USING NATIVE QUERY
+    @Query(value = "SELECT DATE_FORMAT(o.created_at, '%Y-%m') as month, " +
+            "COALESCE(SUM(o.total), 0) as revenue, " +
+            "COUNT(o.id) as orders " +
+            "FROM orders o " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "GROUP BY DATE_FORMAT(o.created_at, '%Y-%m') " +
+            "ORDER BY DATE_FORMAT(o.created_at, '%Y-%m')",
+            nativeQuery = true)
+    List<Object[]> getMonthlyRevenueBetweenDates(@Param("start") LocalDateTime start,
+                                                 @Param("end") LocalDateTime end);
+
+    // Get top wilayas - USING NATIVE QUERY
+    @Query(value = "SELECT o.wilaya, COUNT(o.id) as order_count " +
+            "FROM orders o " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "GROUP BY o.wilaya " +
+            "ORDER BY order_count DESC " +
+            "LIMIT :limit",
+            nativeQuery = true)
+    List<Object[]> getTopWilayasByDateRange(@Param("start") LocalDateTime start,
+                                            @Param("end") LocalDateTime end,
+                                            @Param("limit") int limit);
+
+    // Count customers with multiple orders - USING NATIVE QUERY
+    @Query(value = "SELECT COUNT(*) FROM (" +
+            "SELECT phone, COUNT(*) as order_count FROM orders " +
+            "GROUP BY phone HAVING COUNT(*) > 1" +
+            ") as multi_order_customers",
+            nativeQuery = true)
+    Long countCustomersWithMultipleOrders();
+
+    // Average order value by customer - USING NATIVE QUERY
+    @Query(value = "SELECT AVG(order_avg) FROM (" +
+            "SELECT phone, AVG(total) as order_avg FROM orders " +
+            "GROUP BY phone" +
+            ") as customer_avg",
+            nativeQuery = true)
+    BigDecimal getAverageOrderValuePerCustomer();
+}
