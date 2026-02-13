@@ -61,12 +61,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByCreatedAtAfter(LocalDateTime date);
 
+    // Count orders between dates
     Long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.status = 'DELIVERED' AND o.createdAt BETWEEN :start AND :end")
+    Long countDeliveredOrdersBetweenDates(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     List<Order> findByStatus(OrderStatus status);
 
-    // Return BigDecimal instead of Double
-    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.createdAt BETWEEN :start AND :end")
+    // Sum revenue between dates - ONLY DELIVERED ORDERS (FIX EXISTING)
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.status = 'DELIVERED' AND o.createdAt BETWEEN :start AND :end")  // ADD STATUS FILTER
     BigDecimal sumRevenueBetweenDates(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     // Return BigDecimal instead of Double
@@ -96,28 +100,32 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "COUNT(o.id) as orders " +
             "FROM orders o " +
             "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +  // ADD THIS FILTER
             "GROUP BY DATE(o.created_at) " +
             "ORDER BY DATE(o.created_at)",
             nativeQuery = true)
     List<Object[]> getDailyRevenueBetweenDates(@Param("start") LocalDateTime start,
                                                @Param("end") LocalDateTime end);
 
-    // Get monthly revenue - USING NATIVE QUERY
+    // Get monthly revenue - ONLY DELIVERED ORDERS
     @Query(value = "SELECT DATE_FORMAT(o.created_at, '%Y-%m') as month, " +
             "COALESCE(SUM(o.total), 0) as revenue, " +
             "COUNT(o.id) as orders " +
             "FROM orders o " +
             "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +  // ADD THIS FILTER
             "GROUP BY DATE_FORMAT(o.created_at, '%Y-%m') " +
             "ORDER BY DATE_FORMAT(o.created_at, '%Y-%m')",
             nativeQuery = true)
     List<Object[]> getMonthlyRevenueBetweenDates(@Param("start") LocalDateTime start,
                                                  @Param("end") LocalDateTime end);
 
-    // Get top wilayas - USING NATIVE QUERY
+
+    // Get top wilayas - ONLY DELIVERED ORDERS
     @Query(value = "SELECT o.wilaya, COUNT(o.id) as order_count " +
             "FROM orders o " +
             "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +  // ADD THIS FILTER
             "GROUP BY o.wilaya " +
             "ORDER BY order_count DESC " +
             "LIMIT :limit",
@@ -141,4 +149,26 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             ") as customer_avg",
             nativeQuery = true)
     BigDecimal getAverageOrderValuePerCustomer();
+
+    // Count unique customers with DELIVERED orders
+    @Query(value = "SELECT COUNT(DISTINCT phone) FROM orders WHERE status = 'DELIVERED'", nativeQuery = true)
+    Long countUniqueCustomersWithDeliveredOrders();
+
+    // Count customers with multiple DELIVERED orders
+    @Query(value = "SELECT COUNT(*) FROM (" +
+            "SELECT phone, COUNT(*) as order_count FROM orders " +
+            "WHERE status = 'DELIVERED' " +  // ADD FILTER
+            "GROUP BY phone HAVING COUNT(*) > 1" +
+            ") as multi_order_customers",
+            nativeQuery = true)
+    Long countCustomersWithMultipleDeliveredOrders();
+
+    // Average order value by customer - ONLY DELIVERED ORDERS
+    @Query(value = "SELECT AVG(order_avg) FROM (" +
+            "SELECT phone, AVG(total) as order_avg FROM orders " +
+            "WHERE status = 'DELIVERED' " +  // ADD FILTER
+            "GROUP BY phone" +
+            ") as customer_avg",
+            nativeQuery = true)
+    BigDecimal getAverageDeliveredOrderValuePerCustomer();
 }

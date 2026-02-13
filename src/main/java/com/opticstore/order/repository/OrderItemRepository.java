@@ -13,7 +13,7 @@ import java.util.List;
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 
-    // Get revenue by category - USING NATIVE QUERY
+    // Get revenue by category - ONLY DELIVERED ORDERS
     @Query(value = "SELECT c.name as category, " +
             "COALESCE(SUM(oi.price * oi.quantity), 0) as revenue, " +
             "COUNT(oi.id) as order_count " +
@@ -22,13 +22,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
             "JOIN glasses g ON oi.glass_id = g.id " +
             "JOIN category c ON g.category_id = c.id " +
             "WHERE o.created_at BETWEEN :start AND :end " +
-            "GROUP BY c.name " +
+            "AND o.status = 'DELIVERED' " +  // ADD THIS FILTER
             "ORDER BY revenue DESC",
             nativeQuery = true)
     List<Object[]> getRevenueByCategory(@Param("start") LocalDateTime start,
                                         @Param("end") LocalDateTime end);
 
-    // Get revenue by brand - USING NATIVE QUERY
+
+    // Get revenue by brand - ONLY DELIVERED ORDERS
     @Query(value = "SELECT b.name as brand, " +
             "COALESCE(SUM(oi.price * oi.quantity), 0) as revenue, " +
             "COUNT(oi.id) as order_count " +
@@ -37,13 +38,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
             "JOIN glasses g ON oi.glass_id = g.id " +
             "JOIN brand b ON g.brand_id = b.id " +
             "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +
             "GROUP BY b.name " +
             "ORDER BY revenue DESC",
             nativeQuery = true)
     List<Object[]> getRevenueByBrand(@Param("start") LocalDateTime start,
                                      @Param("end") LocalDateTime end);
 
-    // Get top selling glasses - USING NATIVE QUERY
+    // Get top selling glasses
     @Query(value = "SELECT g.id, g.name, b.name as brand, c.name as category, " +
             "SUM(oi.quantity) as units_sold, " +
             "SUM(oi.price * oi.quantity) as revenue " +
@@ -53,6 +55,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
             "LEFT JOIN brand b ON g.brand_id = b.id " +
             "LEFT JOIN category c ON g.category_id = c.id " +
             "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +
             "GROUP BY g.id, g.name, b.name, c.name " +
             "ORDER BY revenue DESC " +
             "LIMIT :#{#pageable.pageSize}",

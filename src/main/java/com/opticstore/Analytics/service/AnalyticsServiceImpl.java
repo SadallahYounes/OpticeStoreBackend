@@ -48,33 +48,51 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         LocalDateTime startDateTime = dateRange.getStartDateTime();
         LocalDateTime endDateTime = dateRange.getEndDateTime();
 
-        // Get total revenue
-        BigDecimal totalRevenue = orderRepository.sumRevenueBetweenDates(startDateTime, endDateTime);
+        // ================================
+        // TOTAL REVENUE (DELIVERED ONLY)
+        // ================================
+        BigDecimal totalRevenue = orderRepository
+                .sumRevenueBetweenDates(startDateTime, endDateTime);
+
         if (totalRevenue == null) {
             totalRevenue = BigDecimal.ZERO;
         }
         response.setTotalRevenue(totalRevenue);
 
-        // Get order count
-        Long orderCount = orderRepository.countByCreatedAtBetween(startDateTime, endDateTime);
+        // ====================================
+        // DELIVERED ORDER COUNT (NEW METHOD)
+        // ====================================
+        Long deliveredOrderCount = orderRepository
+                .countDeliveredOrdersBetweenDates(startDateTime, endDateTime);
 
-        // Calculate average order value
-        if (orderCount != null && orderCount > 0 && totalRevenue.compareTo(BigDecimal.ZERO) > 0) {
+        if (deliveredOrderCount == null) {
+            deliveredOrderCount = 0L;
+        }
+
+        // ====================================
+        // AVERAGE ORDER VALUE (DELIVERED ONLY)
+        // ====================================
+        if (deliveredOrderCount > 0 && totalRevenue.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal avgOrderValue = totalRevenue.divide(
-                    BigDecimal.valueOf(orderCount), 2, RoundingMode.HALF_UP
+                    BigDecimal.valueOf(deliveredOrderCount),
+                    2,
+                    RoundingMode.HALF_UP
             );
             response.setAverageOrderValue(avgOrderValue);
         } else {
             response.setAverageOrderValue(BigDecimal.ZERO);
         }
 
-        // Get daily revenue trends
+        // ====================================
+        // DAILY REVENUE TRENDS (DELIVERED)
+        // ====================================
         List<Object[]> dailyRevenueData = getDailyRevenueData(startDateTime, endDateTime);
         List<RevenueAnalyticsDTO.TimeSeriesData> dailyRevenue = new ArrayList<>();
 
         for (Object[] data : dailyRevenueData) {
             try {
-                RevenueAnalyticsDTO.TimeSeriesData tsData = new RevenueAnalyticsDTO.TimeSeriesData();
+                RevenueAnalyticsDTO.TimeSeriesData tsData =
+                        new RevenueAnalyticsDTO.TimeSeriesData();
 
                 // Handle date
                 if (data[0] instanceof java.sql.Date) {
@@ -82,7 +100,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 } else if (data[0] instanceof LocalDate) {
                     tsData.setDate((LocalDate) data[0]);
                 } else if (data[0] instanceof java.util.Date) {
-                    tsData.setDate(new java.sql.Date(((java.util.Date) data[0]).getTime()).toLocalDate());
+                    tsData.setDate(
+                            new java.sql.Date(((java.util.Date) data[0]).getTime())
+                                    .toLocalDate()
+                    );
                 }
 
                 // Handle revenue value
@@ -107,18 +128,24 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
         response.setDailyRevenue(dailyRevenue);
 
-        // Get revenue by category
+        // ====================================
+        // REVENUE BY CATEGORY (DELIVERED)
+        // ====================================
         try {
-            Map<String, BigDecimal> revenueByCategory = getRevenueByCategory(startDateTime, endDateTime);
+            Map<String, BigDecimal> revenueByCategory =
+                    getRevenueByCategory(startDateTime, endDateTime);
             response.setRevenueByCategory(revenueByCategory);
         } catch (Exception e) {
             System.err.println("Could not get revenue by category: " + e.getMessage());
             response.setRevenueByCategory(new HashMap<>());
         }
 
-        // Get revenue by brand
+        // ====================================
+        // REVENUE BY BRAND (DELIVERED)
+        // ====================================
         try {
-            Map<String, BigDecimal> revenueByBrand = getRevenueByBrand(startDateTime, endDateTime);
+            Map<String, BigDecimal> revenueByBrand =
+                    getRevenueByBrand(startDateTime, endDateTime);
             response.setRevenueByBrand(revenueByBrand);
         } catch (Exception e) {
             System.err.println("Could not get revenue by brand: " + e.getMessage());
@@ -128,28 +155,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         return response;
     }
 
+
     private List<Object[]> getDailyRevenueData(LocalDateTime start, LocalDateTime end) {
         try {
-            // Try to use the new query
+            // This now uses the query with status='DELIVERED' filter
             return orderRepository.getDailyRevenueBetweenDates(start, end);
         } catch (Exception e) {
             System.err.println("Error in getDailyRevenueData: " + e.getMessage());
-            // Fallback to existing salesByDay method
-            List<Object[]> allSales = orderRepository.salesByDay();
-            return allSales.stream()
-                    .filter(data -> {
-                        try {
-                            if (data[0] instanceof java.sql.Date) {
-                                LocalDate saleDate = ((java.sql.Date) data[0]).toLocalDate();
-                                return !saleDate.isBefore(start.toLocalDate()) &&
-                                        !saleDate.isAfter(end.toLocalDate());
-                            }
-                            return false;
-                        } catch (Exception ex) {
-                            return false;
-                        }
-                    })
-                    .collect(Collectors.toList());
+            return new ArrayList<>();
         }
     }
 
@@ -423,16 +436,16 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
         CustomerAnalyticsDTO response = new CustomerAnalyticsDTO();
 
-        // Get total orders in period
-        Long periodOrders = orderRepository.countByCreatedAtBetween(startDateTime, endDateTime);
+        // FIX: Use delivered orders count
+        Long periodOrders = orderRepository.countDeliveredOrdersBetweenDates(startDateTime, endDateTime);
         response.setPeriodOrders(periodOrders != null ? periodOrders : 0L);
 
         try {
-            // Get unique customers from orders (based on phone)
-            Long uniqueCustomers = orderRepository.countUniqueCustomers();
+            // FIX: Use unique customers with delivered orders
+            Long uniqueCustomers = orderRepository.countUniqueCustomersWithDeliveredOrders();
             response.setUniqueCustomers(uniqueCustomers != null ? uniqueCustomers : 0L);
 
-            // Calculate average orders per customer
+            // Calculate average orders per customer (delivered only)
             if (uniqueCustomers != null && uniqueCustomers > 0 && periodOrders != null && periodOrders > 0) {
                 BigDecimal avgOrdersPerCustomer = BigDecimal.valueOf(periodOrders)
                         .divide(BigDecimal.valueOf(uniqueCustomers), 2, RoundingMode.HALF_UP);
@@ -446,9 +459,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             response.setAvgOrdersPerCustomer(BigDecimal.ZERO);
         }
 
-        // Get top wilayas
+        // Get top wilayas (already fixed in repository)
         try {
-           
             List<Object[]> wilayaData = orderRepository.getTopWilayasByDateRange(startDateTime, endDateTime, 5);
             List<CustomerAnalyticsDTO.WilayaData> topWilayas = wilayaData.stream()
                     .map(data -> {
