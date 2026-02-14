@@ -46,6 +46,7 @@ public class AnalyticsController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String brand,
             @RequestParam(defaultValue = "false") boolean includeComparisons) {
 
         try {
@@ -86,6 +87,7 @@ public class AnalyticsController {
             request.setStartDate(startDate);
             request.setEndDate(endDate);
             request.setCategory(category);
+            request.setBrand(brand);
             request.setIncludeComparisons(includeComparisons);
 
             RevenueAnalyticsDTO analytics = analyticsService.getRevenueAnalytics(request);
@@ -105,32 +107,182 @@ public class AnalyticsController {
 
     @GetMapping("/products/top")
     @Operation(summary = "Get top performing products")
-    public ResponseEntity<ProductPerformanceDTO> getTopProducts(
+    public ResponseEntity<?> getTopProducts(
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String brand,
             @RequestParam(defaultValue = "10") int limit,
             @RequestParam(defaultValue = "revenue") String sortBy) {
 
-        AnalyticsFilter filter = new AnalyticsFilter();
-        filter.setLimit(limit);
-        filter.setSortBy(sortBy);
+        try {
+            AnalyticsFilter filter = new AnalyticsFilter();
 
-        ProductPerformanceDTO performance = analyticsService.getProductPerformance(filter);
-        return ResponseEntity.ok(performance);
+            if (period != null) {
+                filter.setPeriod(TimePeriod.valueOf(period));
+            } else {
+                filter.setPeriod(TimePeriod.THIS_MONTH);
+            }
+
+            filter.setStartDate(startDate);
+            filter.setEndDate(endDate);
+            filter.setCategory(category);
+            filter.setBrand(brand);
+            filter.setLimit(limit);
+            filter.setSortBy(sortBy);
+
+            // Validate CUSTOM period
+            if (filter.getPeriod() == TimePeriod.CUSTOM) {
+                if (startDate == null || endDate == null) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "error", "startDate and endDate are required for CUSTOM period",
+                            "period", period,
+                            "providedStartDate", startDate,
+                            "providedEndDate", endDate
+                    ));
+                }
+
+                if (endDate.isBefore(startDate)) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "error", "endDate cannot be before startDate",
+                            "startDate", startDate,
+                            "endDate", endDate
+                    ));
+                }
+            }
+
+            ProductPerformanceDTO performance = analyticsService.getProductPerformance(filter);
+            return ResponseEntity.ok(performance);
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid period value",
+                    "validPeriods", Arrays.toString(TimePeriod.values()),
+                    "provided", period
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch product analytics: " + e.getMessage()));
+        }
     }
 
     @GetMapping("/customers")
     @Operation(summary = "Get customer analytics")
-    public ResponseEntity<CustomerAnalyticsDTO> getCustomerAnalytics(
+    public ResponseEntity<?> getCustomerAnalytics(
             @RequestParam(defaultValue = "THIS_MONTH") String period,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String brand) {
 
-        AnalyticsFilter filter = new AnalyticsFilter();
-        filter.setPeriod(com.opticstore.Analytics.model.TimePeriod.valueOf(period));
-        filter.setStartDate(startDate);
-        filter.setEndDate(endDate);
+        try {
+            TimePeriod timePeriod = TimePeriod.valueOf(period);
 
-        CustomerAnalyticsDTO analytics = analyticsService.getCustomerAnalytics(filter);
-        return ResponseEntity.ok(analytics);
+            AnalyticsFilter filter = new AnalyticsFilter();
+            filter.setPeriod(timePeriod);
+            filter.setStartDate(startDate);
+            filter.setEndDate(endDate);
+            filter.setCategory(category);
+            filter.setBrand(brand);
+
+            // Validate CUSTOM period
+            if (timePeriod == TimePeriod.CUSTOM) {
+                if (startDate == null || endDate == null) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "error", "startDate and endDate are required for CUSTOM period",
+                            "period", period,
+                            "providedStartDate", startDate,
+                            "providedEndDate", endDate
+                    ));
+                }
+
+                if (endDate.isBefore(startDate)) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "error", "endDate cannot be before startDate",
+                            "startDate", startDate,
+                            "endDate", endDate
+                    ));
+                }
+            }
+
+            CustomerAnalyticsDTO analytics = analyticsService.getCustomerAnalytics(filter);
+            return ResponseEntity.ok(analytics);
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid period value",
+                    "validPeriods", Arrays.toString(TimePeriod.values()),
+                    "provided", period
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch customer analytics: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/revenue/by-category")
+    @Operation(summary = "Get revenue breakdown by category")
+    public ResponseEntity<?> getRevenueByCategory(
+            @RequestParam(defaultValue = "THIS_MONTH") String period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String brand) {
+
+        try {
+            TimePeriod timePeriod = TimePeriod.valueOf(period);
+
+            AnalyticsFilter filter = new AnalyticsFilter();
+            filter.setPeriod(timePeriod);
+            filter.setStartDate(startDate);
+            filter.setEndDate(endDate);
+            filter.setBrand(brand);
+
+            var revenueByCategory = analyticsService.getRevenueByCategory(filter);
+            return ResponseEntity.ok(revenueByCategory);
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid period value",
+                    "validPeriods", Arrays.toString(TimePeriod.values()),
+                    "provided", period
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch revenue by category: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/revenue/by-brand")
+    @Operation(summary = "Get revenue breakdown by brand")
+    public ResponseEntity<?> getRevenueByBrand(
+            @RequestParam(defaultValue = "THIS_MONTH") String period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String category) {
+
+        try {
+            TimePeriod timePeriod = TimePeriod.valueOf(period);
+
+            AnalyticsFilter filter = new AnalyticsFilter();
+            filter.setPeriod(timePeriod);
+            filter.setStartDate(startDate);
+            filter.setEndDate(endDate);
+            filter.setCategory(category);
+
+            var revenueByBrand = analyticsService.getRevenueByBrand(filter);
+            return ResponseEntity.ok(revenueByBrand);
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid period value",
+                    "validPeriods", Arrays.toString(TimePeriod.values()),
+                    "provided", period
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch revenue by brand: " + e.getMessage()));
+        }
     }
 
     @GetMapping("/test")

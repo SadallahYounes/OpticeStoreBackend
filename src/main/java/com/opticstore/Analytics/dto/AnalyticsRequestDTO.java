@@ -19,7 +19,7 @@ public class AnalyticsRequestDTO {
     private boolean includeComparisons = false;
     private String groupBy = "day";
 
-    // Manual getters and setters
+    //  getters and setters
     public TimePeriod getPeriod() { return period; }
     public void setPeriod(TimePeriod period) { this.period = period; }
 

@@ -18,6 +18,8 @@ public class OrderItem extends BaseEntity {
     @JoinColumn(name = "order_id")
     private Order order;
 
+
+    //getters and setters...
     public Long getGlassId() {
         return glassId;
     }

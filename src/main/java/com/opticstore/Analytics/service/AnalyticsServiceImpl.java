@@ -1,6 +1,5 @@
 package com.opticstore.Analytics.service;
 
-
 import com.opticstore.Analytics.dto.AnalyticsRequestDTO;
 import com.opticstore.Analytics.dto.CustomerAnalyticsDTO;
 import com.opticstore.Analytics.dto.ProductPerformanceDTO;
@@ -20,11 +19,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.LocalDateTime;;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -50,18 +48,39 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         LocalDateTime startDateTime = dateRange.getStartDateTime();
         LocalDateTime endDateTime = dateRange.getEndDateTime();
 
+        String category = request.getCategory();
+        String brand = request.getBrand();
+
+        System.out.println("=== Processing Revenue Analytics ===");
+        System.out.println("Start: " + startDateTime);
+        System.out.println("End: " + endDateTime);
+        System.out.println("Category: " + category);
+        System.out.println("Brand: " + brand);
+
         // ================================
-        // TOTAL REVENUE (DELIVERED ONLY)
+        // TOTAL REVENUE WITH FILTERS
         // ================================
-        BigDecimal totalRevenue = orderRepository
-                .sumRevenueBetweenDates(startDateTime, endDateTime);
+        BigDecimal totalRevenue;
+        if ((category != null && !category.isEmpty()) || (brand != null && !brand.isEmpty())) {
+            System.out.println("Using filtered revenue query");
+            totalRevenue = orderItemRepository.getFilteredRevenue(startDateTime, endDateTime, category, brand);
+        } else {
+            System.out.println("Using unfiltered revenue query");
+            totalRevenue = orderRepository.sumRevenueBetweenDates(startDateTime, endDateTime);
+        }
+        System.out.println("Total Revenue: " + totalRevenue);
         response.setTotalRevenue(totalRevenue != null ? totalRevenue : BigDecimal.ZERO);
 
         // ====================================
-        // DELIVERED ORDER COUNT
+        // DELIVERED ORDER COUNT WITH FILTERS
         // ====================================
-        Long deliveredOrderCount = orderRepository
-                .countDeliveredOrdersBetweenDates(startDateTime, endDateTime);
+        Long deliveredOrderCount;
+        if ((category != null && !category.isEmpty()) || (brand != null && !brand.isEmpty())) {
+            deliveredOrderCount = orderItemRepository.getFilteredOrdersCount(startDateTime, endDateTime, category, brand);
+        } else {
+            deliveredOrderCount = orderRepository.countDeliveredOrdersBetweenDates(startDateTime, endDateTime);
+        }
+        System.out.println("Delivered Orders: " + deliveredOrderCount);
         response.setTotalOrders(deliveredOrderCount != null ? deliveredOrderCount : 0L);
 
         // ====================================
@@ -82,12 +101,17 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         // ====================================
         // CONVERSION RATE
         // ====================================
-        // Get total orders (including non-delivered) in the same period
-        Long totalOrdersInPeriod = orderRepository.countByCreatedAtBetween(startDateTime, endDateTime);
+        Long totalOrdersInPeriod;
+        if ((category != null && !category.isEmpty()) || (brand != null && !brand.isEmpty())) {
+            // Get total orders (including non-delivered) with filters
+            totalOrdersInPeriod = orderItemRepository.getTotalOrdersWithFilters(startDateTime, endDateTime, category, brand);
+        } else {
+            totalOrdersInPeriod = orderRepository.countByCreatedAtBetween(startDateTime, endDateTime);
+        }
+        System.out.println("Total Orders (including non-delivered): " + totalOrdersInPeriod);
 
         if (totalOrdersInPeriod != null && totalOrdersInPeriod > 0 &&
                 deliveredOrderCount != null && deliveredOrderCount > 0) {
-            // Conversion rate = (Delivered Orders / Total Orders) * 100
             BigDecimal conversionRate = BigDecimal.valueOf(deliveredOrderCount)
                     .multiply(BigDecimal.valueOf(100))
                     .divide(BigDecimal.valueOf(totalOrdersInPeriod), 2, RoundingMode.HALF_UP);
@@ -97,90 +121,141 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
 
         // ====================================
-        // DAILY REVENUE TRENDS
+        // DAILY REVENUE TRENDS WITH FILTERS
         // ====================================
-        List<Object[]> dailyRevenueData = getDailyRevenueData(startDateTime, endDateTime);
+        List<Object[]> dailyRevenueData;
+        if ((category != null && !category.isEmpty()) || (brand != null && !brand.isEmpty())) {
+            dailyRevenueData = orderItemRepository.getDailyRevenueWithFilters(startDateTime, endDateTime, category, brand);
+        } else {
+            dailyRevenueData = orderRepository.getDailyRevenueBetweenDates(startDateTime, endDateTime);
+        }
+        System.out.println("Daily Revenue Data Points: " + (dailyRevenueData != null ? dailyRevenueData.size() : 0));
+
         List<RevenueAnalyticsDTO.TimeSeriesData> dailyRevenue = new ArrayList<>();
 
-        for (Object[] data : dailyRevenueData) {
-            try {
-                RevenueAnalyticsDTO.TimeSeriesData tsData =
-                        new RevenueAnalyticsDTO.TimeSeriesData();
+        // Process dailyRevenueData
+        if (dailyRevenueData != null) {
+            for (Object[] data : dailyRevenueData) {
+                try {
+                    RevenueAnalyticsDTO.TimeSeriesData tsData = new RevenueAnalyticsDTO.TimeSeriesData();
 
-                // Handle date
-                if (data[0] instanceof java.sql.Date) {
-                    tsData.setDate(((java.sql.Date) data[0]).toLocalDate());
-                } else if (data[0] instanceof LocalDate) {
-                    tsData.setDate((LocalDate) data[0]);
+                    // Handle date (for native query results)
+                    if (data[0] instanceof java.sql.Date) {
+                        tsData.setDate(((java.sql.Date) data[0]).toLocalDate());
+                    } else if (data[0] instanceof java.sql.Timestamp) {
+                        tsData.setDate(((java.sql.Timestamp) data[0]).toLocalDateTime().toLocalDate());
+                    } else if (data[0] instanceof LocalDate) {
+                        tsData.setDate((LocalDate) data[0]);
+                    }
+
+                    // Handle revenue
+                    if (data[1] != null) {
+                        if (data[1] instanceof BigDecimal) {
+                            tsData.setValue((BigDecimal) data[1]);
+                        } else {
+                            tsData.setValue(new BigDecimal(data[1].toString()));
+                        }
+                    } else {
+                        tsData.setValue(BigDecimal.ZERO);
+                    }
+
+                    // Handle order count
+                    if (data.length > 2 && data[2] != null) {
+                        tsData.setOrders(((Number) data[2]).intValue());
+                    } else {
+                        tsData.setOrders(0);
+                    }
+
+                    dailyRevenue.add(tsData);
+                } catch (Exception e) {
+                    System.err.println("Error processing daily revenue data: " + e.getMessage());
                 }
-
-                // Handle revenue value
-                if (data[1] != null) {
-                    tsData.setValue(new BigDecimal(data[1].toString()));
-                } else {
-                    tsData.setValue(BigDecimal.ZERO);
-                }
-
-                // Handle order count
-                if (data[2] != null) {
-                    tsData.setOrders(((Number) data[2]).intValue());
-                } else {
-                    tsData.setOrders(0);
-                }
-
-                dailyRevenue.add(tsData);
-            } catch (Exception e) {
-                System.err.println("Error processing daily revenue data: " + e.getMessage());
             }
         }
 
         response.setDailyRevenue(dailyRevenue);
 
         // ====================================
-        // REVENUE BY CATEGORY & BRAND
+        // REVENUE BY CATEGORY WITH FILTERS
         // ====================================
         try {
-            Map<String, BigDecimal> revenueByCategory =
-                    getRevenueByCategory(startDateTime, endDateTime);
+            Map<String, BigDecimal> revenueByCategory;
+            if (category != null && !category.isEmpty()) {
+                // If filtering by category, get data for that specific category
+                revenueByCategory = getRevenueByCategory(startDateTime, endDateTime, category);
+            } else {
+                // No category filter - get all categories (optionally filtered by brand)
+                if (brand != null && !brand.isEmpty()) {
+                    revenueByCategory = getRevenueByCategoryWithBrandFilter(startDateTime, endDateTime, brand);
+                } else {
+                    revenueByCategory = getRevenueByCategory(startDateTime, endDateTime);
+                }
+            }
+            System.out.println("Revenue by Category: " + revenueByCategory);
             response.setRevenueByCategory(revenueByCategory);
         } catch (Exception e) {
+            System.err.println("Error in revenue by category: " + e.getMessage());
             response.setRevenueByCategory(new HashMap<>());
         }
 
+        // ====================================
+        // REVENUE BY BRAND WITH FILTERS
+        // ====================================
         try {
-            Map<String, BigDecimal> revenueByBrand =
-                    getRevenueByBrand(startDateTime, endDateTime);
+            Map<String, BigDecimal> revenueByBrand;
+            if (brand != null && !brand.isEmpty()) {
+                // If filtering by brand, get data for that specific brand
+                revenueByBrand = getRevenueByBrand(startDateTime, endDateTime, brand);
+            } else {
+                // No brand filter - get all brands (optionally filtered by category)
+                if (category != null && !category.isEmpty()) {
+                    revenueByBrand = getRevenueByBrandWithCategoryFilter(startDateTime, endDateTime, category);
+                } else {
+                    revenueByBrand = getRevenueByBrand(startDateTime, endDateTime);
+                }
+            }
+            System.out.println("Revenue by Brand: " + revenueByBrand);
             response.setRevenueByBrand(revenueByBrand);
         } catch (Exception e) {
+            System.err.println("Error in revenue by brand: " + e.getMessage());
             response.setRevenueByBrand(new HashMap<>());
         }
 
         return response;
     }
 
-
-    private List<Object[]> getDailyRevenueData(LocalDateTime start, LocalDateTime end) {
-        try {
-            // This now uses the query with status='DELIVERED' filter
-            return orderRepository.getDailyRevenueBetweenDates(start, end);
-        } catch (Exception e) {
-            System.err.println("Error in getDailyRevenueData: " + e.getMessage());
-            return new ArrayList<>();
-        }
-    }
+    // ==================== HELPER METHODS FOR REVENUE BY CATEGORY/BRAND ====================
 
     private Map<String, BigDecimal> getRevenueByCategory(LocalDateTime start, LocalDateTime end) {
+        return getRevenueByCategory(start, end, null);
+    }
+
+    private Map<String, BigDecimal> getRevenueByCategory(LocalDateTime start, LocalDateTime end, String categoryFilter) {
         try {
-            List<Object[]> categoryData = orderItemRepository.getRevenueByCategory(start, end);
-            Map<String, BigDecimal> result = new HashMap<>();
+            List<Object[]> categoryData;
+            if (categoryFilter != null && !categoryFilter.isEmpty()) {
+                categoryData = orderItemRepository.getRevenueByCategoryWithFilter(start, end, categoryFilter);
+            } else {
+                categoryData = orderItemRepository.getRevenueByCategory(start, end);
+            }
+
+            Map<String, BigDecimal> result = new LinkedHashMap<>();
 
             for (Object[] data : categoryData) {
                 if (data[0] != null && data[1] != null) {
                     String category = data[0].toString();
-                    BigDecimal revenue = new BigDecimal(data[1].toString());
+                    BigDecimal revenue;
+
+                    if (data[1] instanceof BigDecimal) {
+                        revenue = (BigDecimal) data[1];
+                    } else {
+                        revenue = new BigDecimal(data[1].toString());
+                    }
+
                     result.put(category, revenue);
                 }
             }
+
             return result;
         } catch (Exception e) {
             System.err.println("Error getting revenue by category: " + e.getMessage());
@@ -188,18 +263,64 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
     }
 
-    private Map<String, BigDecimal> getRevenueByBrand(LocalDateTime start, LocalDateTime end) {
+    private Map<String, BigDecimal> getRevenueByCategoryWithBrandFilter(LocalDateTime start, LocalDateTime end, String brand) {
         try {
-            List<Object[]> brandData = orderItemRepository.getRevenueByBrand(start, end);
-            Map<String, BigDecimal> result = new HashMap<>();
+            List<Object[]> categoryData = orderItemRepository.getRevenueByCategoryWithBrandFilter(start, end, brand);
+
+            Map<String, BigDecimal> result = new LinkedHashMap<>();
+
+            for (Object[] data : categoryData) {
+                if (data[0] != null && data[1] != null) {
+                    String category = data[0].toString();
+                    BigDecimal revenue;
+
+                    if (data[1] instanceof BigDecimal) {
+                        revenue = (BigDecimal) data[1];
+                    } else {
+                        revenue = new BigDecimal(data[1].toString());
+                    }
+
+                    result.put(category, revenue);
+                }
+            }
+
+            return result;
+        } catch (Exception e) {
+            System.err.println("Error getting revenue by category with brand filter: " + e.getMessage());
+            return new HashMap<>();
+        }
+    }
+
+    private Map<String, BigDecimal> getRevenueByBrand(LocalDateTime start, LocalDateTime end) {
+        return getRevenueByBrand(start, end, null);
+    }
+
+    private Map<String, BigDecimal> getRevenueByBrand(LocalDateTime start, LocalDateTime end, String brandFilter) {
+        try {
+            List<Object[]> brandData;
+            if (brandFilter != null && !brandFilter.isEmpty()) {
+                brandData = orderItemRepository.getRevenueByBrandWithFilter(start, end, brandFilter);
+            } else {
+                brandData = orderItemRepository.getRevenueByBrand(start, end);
+            }
+
+            Map<String, BigDecimal> result = new LinkedHashMap<>();
 
             for (Object[] data : brandData) {
                 if (data[0] != null && data[1] != null) {
                     String brand = data[0].toString();
-                    BigDecimal revenue = new BigDecimal(data[1].toString());
+                    BigDecimal revenue;
+
+                    if (data[1] instanceof BigDecimal) {
+                        revenue = (BigDecimal) data[1];
+                    } else {
+                        revenue = new BigDecimal(data[1].toString());
+                    }
+
                     result.put(brand, revenue);
                 }
             }
+
             return result;
         } catch (Exception e) {
             System.err.println("Error getting revenue by brand: " + e.getMessage());
@@ -207,10 +328,44 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
     }
 
-    private List<Object[]> getTopGlassesByPeriod(LocalDateTime start, LocalDateTime end, int limit) {
+    private Map<String, BigDecimal> getRevenueByBrandWithCategoryFilter(LocalDateTime start, LocalDateTime end, String category) {
+        try {
+            List<Object[]> brandData = orderItemRepository.getRevenueByBrandWithCategoryFilter(start, end, category);
+
+            Map<String, BigDecimal> result = new LinkedHashMap<>();
+
+            for (Object[] data : brandData) {
+                if (data[0] != null && data[1] != null) {
+                    String brand = data[0].toString();
+                    BigDecimal revenue;
+
+                    if (data[1] instanceof BigDecimal) {
+                        revenue = (BigDecimal) data[1];
+                    } else {
+                        revenue = new BigDecimal(data[1].toString());
+                    }
+
+                    result.put(brand, revenue);
+                }
+            }
+
+            return result;
+        } catch (Exception e) {
+            System.err.println("Error getting revenue by brand with category filter: " + e.getMessage());
+            return new HashMap<>();
+        }
+    }
+
+    // ==================== TOP PRODUCTS METHODS ====================
+
+    private List<Object[]> getTopGlassesByPeriod(LocalDateTime start, LocalDateTime end, int limit, String category, String brand) {
         try {
             Pageable pageable = PageRequest.of(0, limit);
-            return orderItemRepository.getTopSellingGlasses(start, end, pageable);
+            if ((category != null && !category.isEmpty()) || (brand != null && !brand.isEmpty())) {
+                return orderItemRepository.getTopSellingGlassesWithFilters(start, end, category, brand, pageable);
+            } else {
+                return orderItemRepository.getTopSellingGlasses(start, end, pageable);
+            }
         } catch (Exception e) {
             System.err.println("Error getting top glasses: " + e.getMessage());
             return new ArrayList<>();
@@ -225,11 +380,15 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         LocalDateTime startDateTime = dateRange.getStartDateTime();
         LocalDateTime endDateTime = dateRange.getEndDateTime();
 
-        // Get top selling glasses
+        String category = filter.getCategory();
+        String brand = filter.getBrand();
+
+        // Get top selling glasses with filters
         List<ProductPerformanceDTO.ProductStats> topProducts = new ArrayList<>();
 
         try {
-            List<Object[]> topGlassesData = getTopGlassesByPeriod(startDateTime, endDateTime, filter.getLimit());
+            List<Object[]> topGlassesData = getTopGlassesByPeriod(startDateTime, endDateTime,
+                    filter.getLimit() != null ? filter.getLimit() : 10, category, brand);
 
             for (Object[] data : topGlassesData) {
                 try {
@@ -256,7 +415,11 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     }
 
                     if (data[5] != null) {
-                        stats.setRevenue(new BigDecimal(data[5].toString()));
+                        if (data[5] instanceof BigDecimal) {
+                            stats.setRevenue((BigDecimal) data[5]);
+                        } else {
+                            stats.setRevenue(new BigDecimal(data[5].toString()));
+                        }
                     }
 
                     // Get stock quantity for this glasses
@@ -388,16 +551,22 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         DateRange dateRange = getDateRangeFromFilter(filter);
         LocalDateTime startDateTime = dateRange.getStartDateTime();
         LocalDateTime endDateTime = dateRange.getEndDateTime();
+        String brand = filter.getBrand();
 
         try {
-            List<Object[]> categoryData = orderItemRepository.getRevenueByCategory(startDateTime, endDateTime);
+            List<Object[]> categoryData;
+            if (brand != null && !brand.isEmpty()) {
+                categoryData = orderItemRepository.getRevenueByCategoryWithBrandFilter(startDateTime, endDateTime, brand);
+            } else {
+                categoryData = orderItemRepository.getRevenueByCategory(startDateTime, endDateTime);
+            }
 
             return categoryData.stream()
                     .map(data -> {
                         Map<String, Object> category = new HashMap<>();
                         category.put("category", data[0]);
                         category.put("revenue", data[1] != null ? new BigDecimal(data[1].toString()) : BigDecimal.ZERO);
-                        category.put("orders", data[2]);
+                        category.put("orders", data[2] != null ? data[2] : 0);
                         return category;
                     })
                     .collect(Collectors.toList());
@@ -412,16 +581,22 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         DateRange dateRange = getDateRangeFromFilter(filter);
         LocalDateTime startDateTime = dateRange.getStartDateTime();
         LocalDateTime endDateTime = dateRange.getEndDateTime();
+        String category = filter.getCategory();
 
         try {
-            List<Object[]> brandData = orderItemRepository.getRevenueByBrand(startDateTime, endDateTime);
+            List<Object[]> brandData;
+            if (category != null && !category.isEmpty()) {
+                brandData = orderItemRepository.getRevenueByBrandWithCategoryFilter(startDateTime, endDateTime, category);
+            } else {
+                brandData = orderItemRepository.getRevenueByBrand(startDateTime, endDateTime);
+            }
 
             return brandData.stream()
                     .map(data -> {
                         Map<String, Object> brand = new HashMap<>();
                         brand.put("brand", data[0]);
                         brand.put("revenue", data[1] != null ? new BigDecimal(data[1].toString()) : BigDecimal.ZERO);
-                        brand.put("orders", data[2]);
+                        brand.put("orders", data[2] != null ? data[2] : 0);
                         return brand;
                     })
                     .collect(Collectors.toList());
@@ -430,9 +605,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             return new ArrayList<>();
         }
     }
-
-
-
 
     @Override
     public Map<String, Object> getPrescriptionAnalytics(AnalyticsFilter filter) {
@@ -446,9 +618,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         DateRange dateRange = getDateRangeFromFilter(filter);
         LocalDateTime start = dateRange.getStartDateTime();
         LocalDateTime end = dateRange.getEndDateTime();
+        String category = filter.getCategory();
+        String brand = filter.getBrand();
 
         try {
-            List<Object[]> topProducts = getTopGlassesByPeriod(start, end, filter.getLimit());
+            List<Object[]> topProducts = getTopGlassesByPeriod(start, end,
+                    filter.getLimit() != null ? filter.getLimit() : 10, category, brand);
 
             return topProducts.stream()
                     .map(data -> {
@@ -456,6 +631,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         product.put("id", data[0]);
                         product.put("name", data[1]);
                         product.put("brand", data[2]);
+                        product.put("category", data[3]);
                         product.put("unitsSold", data[4]);
                         product.put("revenue", data[5] != null ? new BigDecimal(data[5].toString()) : BigDecimal.ZERO);
                         return product;
@@ -479,6 +655,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         product.put("id", glass.getId());
                         product.put("name", glass.getName());
                         product.put("brand", glass.getBrand() != null ? glass.getBrand().getName() : "N/A");
+                        product.put("category", glass.getCategory() != null ? glass.getCategory().getName() : "N/A");
                         product.put("quantity", glass.getQuantity());
                         product.put("price", glass.getPrice());
                         product.put("reorderLevel", threshold);
@@ -558,29 +735,40 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         return retention;
     }
 
-
     @Override
     public CustomerAnalyticsDTO getCustomerAnalytics(AnalyticsFilter filter) {
         DateRange dateRange = getDateRangeFromFilter(filter);
         LocalDateTime startDateTime = dateRange.getStartDateTime();
         LocalDateTime endDateTime = dateRange.getEndDateTime();
 
+        String category = filter.getCategory();
+        String brand = filter.getBrand();
+
         CustomerAnalyticsDTO response = new CustomerAnalyticsDTO();
 
         try {
             // ================================
-            // 1. DELIVERED ORDERS COUNT
+            // 1. DELIVERED ORDERS COUNT WITH FILTERS
             // ================================
-            Long periodOrders = orderRepository.countDeliveredOrdersBetweenDates(startDateTime, endDateTime);
+            Long periodOrders;
+            if ((category != null && !category.isEmpty()) || (brand != null && !brand.isEmpty())) {
+                periodOrders = orderItemRepository.getFilteredOrdersCount(startDateTime, endDateTime, category, brand);
+            } else {
+                periodOrders = orderRepository.countDeliveredOrdersBetweenDates(startDateTime, endDateTime);
+            }
             response.setPeriodOrders(periodOrders != null ? periodOrders : 0L);
 
             // ================================
-            // 2. UNIQUE CUSTOMERS (DELIVERED)
+            // 2. UNIQUE CUSTOMERS (DELIVERED) WITH FILTERS
             // ================================
-            // Using the correct method name
-            Long uniqueCustomers = orderRepository.countUniqueCustomersWithDeliveredOrdersByDateRange(
-                    startDateTime, endDateTime
-            );
+            Long uniqueCustomers;
+            if ((category != null && !category.isEmpty()) || (brand != null && !brand.isEmpty())) {
+                uniqueCustomers = orderItemRepository.getFilteredUniqueCustomers(startDateTime, endDateTime, category, brand);
+            } else {
+                uniqueCustomers = orderRepository.countUniqueCustomersWithDeliveredOrdersByDateRange(
+                        startDateTime, endDateTime
+                );
+            }
             response.setUniqueCustomers(uniqueCustomers != null ? uniqueCustomers : 0L);
 
             // ================================
@@ -595,11 +783,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             }
 
             // ================================
-            // 4. TOP WILAYAS WITH DETAILS
+            // 4. TOP WILAYAS WITH DETAILS AND FILTERS
             // ================================
-            List<Object[]> wilayaData = orderRepository.getTopWilayasWithDetails(
-                    startDateTime, endDateTime, 5
-            );
+            List<Object[]> wilayaData;
+            if ((category != null && !category.isEmpty()) || (brand != null && !brand.isEmpty())) {
+                wilayaData = orderItemRepository.getTopWilayasWithFilters(startDateTime, endDateTime, category, brand, 5);
+            } else {
+                wilayaData = orderRepository.getTopWilayasWithDetails(startDateTime, endDateTime, 5);
+            }
 
             List<CustomerAnalyticsDTO.WilayaData> topWilayas = new ArrayList<>();
 
@@ -619,13 +810,17 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
                     // Revenue
                     if (data[2] != null) {
-                        wilaya.setRevenue(new BigDecimal(data[2].toString()));
+                        if (data[2] instanceof BigDecimal) {
+                            wilaya.setRevenue((BigDecimal) data[2]);
+                        } else {
+                            wilaya.setRevenue(new BigDecimal(data[2].toString()));
+                        }
                     } else {
                         wilaya.setRevenue(BigDecimal.ZERO);
                     }
 
                     // Customer count
-                    if (data[3] != null) {
+                    if (data.length > 3 && data[3] != null) {
                         wilaya.setCustomers(((Number) data[3]).longValue());
                     } else {
                         wilaya.setCustomers(0L);
@@ -646,9 +841,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 LocalDateTime previousStart = startDateTime.minusDays(daysBetween);
                 LocalDateTime previousEnd = startDateTime;
 
-                Long previousCustomers = orderRepository.countUniqueCustomersWithDeliveredOrdersByDateRange(
-                        previousStart, previousEnd
-                );
+                Long previousCustomers;
+                if ((category != null && !category.isEmpty()) || (brand != null && !brand.isEmpty())) {
+                    previousCustomers = orderItemRepository.getFilteredUniqueCustomers(previousStart, previousEnd, category, brand);
+                } else {
+                    previousCustomers = orderRepository.countUniqueCustomersWithDeliveredOrdersByDateRange(
+                            previousStart, previousEnd
+                    );
+                }
 
                 if (previousCustomers != null && previousCustomers > 0 && uniqueCustomers != null) {
                     BigDecimal growth = BigDecimal.valueOf(uniqueCustomers - previousCustomers)
@@ -703,7 +903,19 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         System.out.println("Analytics data refresh triggered");
     }
 
-    // Helper methods for date ranges
+    // ==================== DAILY REVENUE DATA HELPER ====================
+
+    private List<Object[]> getDailyRevenueData(LocalDateTime start, LocalDateTime end) {
+        try {
+            return orderRepository.getDailyRevenueBetweenDates(start, end);
+        } catch (Exception e) {
+            System.err.println("Error in getDailyRevenueData: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    // ==================== DATE RANGE HELPER METHODS ====================
+
     private DateRange getDateRange(AnalyticsRequestDTO request) {
         if (request == null) {
             return new DateRange(LocalDate.now().minusMonths(1), LocalDate.now());
@@ -793,7 +1005,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         return new DateRange(startDate, endDate);
     }
 
-    // DateRange inner class
+    // ==================== INNER CLASS ====================
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
