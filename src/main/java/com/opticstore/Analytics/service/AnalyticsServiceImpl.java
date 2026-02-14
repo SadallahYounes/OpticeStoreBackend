@@ -8,6 +8,7 @@ import com.opticstore.Analytics.dto.RevenueAnalyticsDTO;
 import com.opticstore.Analytics.model.AnalyticsFilter;
 import com.opticstore.Analytics.model.TimePeriod;
 import com.opticstore.order.model.Order;
+import com.opticstore.order.model.OrderStatus;
 import com.opticstore.order.repository.OrderItemRepository;
 import com.opticstore.order.repository.OrderRepository;
 import com.opticstore.product.glasses.model.Glasses;
@@ -24,6 +25,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -53,26 +55,20 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         // ================================
         BigDecimal totalRevenue = orderRepository
                 .sumRevenueBetweenDates(startDateTime, endDateTime);
-
-        if (totalRevenue == null) {
-            totalRevenue = BigDecimal.ZERO;
-        }
-        response.setTotalRevenue(totalRevenue);
+        response.setTotalRevenue(totalRevenue != null ? totalRevenue : BigDecimal.ZERO);
 
         // ====================================
-        // DELIVERED ORDER COUNT (NEW METHOD)
+        // DELIVERED ORDER COUNT
         // ====================================
         Long deliveredOrderCount = orderRepository
                 .countDeliveredOrdersBetweenDates(startDateTime, endDateTime);
-
-        if (deliveredOrderCount == null) {
-            deliveredOrderCount = 0L;
-        }
+        response.setTotalOrders(deliveredOrderCount != null ? deliveredOrderCount : 0L);
 
         // ====================================
-        // AVERAGE ORDER VALUE (DELIVERED ONLY)
+        // AVERAGE ORDER VALUE
         // ====================================
-        if (deliveredOrderCount > 0 && totalRevenue.compareTo(BigDecimal.ZERO) > 0) {
+        if (deliveredOrderCount != null && deliveredOrderCount > 0 &&
+                totalRevenue != null && totalRevenue.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal avgOrderValue = totalRevenue.divide(
                     BigDecimal.valueOf(deliveredOrderCount),
                     2,
@@ -84,7 +80,24 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
 
         // ====================================
-        // DAILY REVENUE TRENDS (DELIVERED)
+        // CONVERSION RATE
+        // ====================================
+        // Get total orders (including non-delivered) in the same period
+        Long totalOrdersInPeriod = orderRepository.countByCreatedAtBetween(startDateTime, endDateTime);
+
+        if (totalOrdersInPeriod != null && totalOrdersInPeriod > 0 &&
+                deliveredOrderCount != null && deliveredOrderCount > 0) {
+            // Conversion rate = (Delivered Orders / Total Orders) * 100
+            BigDecimal conversionRate = BigDecimal.valueOf(deliveredOrderCount)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalOrdersInPeriod), 2, RoundingMode.HALF_UP);
+            response.setConversionRate(conversionRate);
+        } else {
+            response.setConversionRate(BigDecimal.ZERO);
+        }
+
+        // ====================================
+        // DAILY REVENUE TRENDS
         // ====================================
         List<Object[]> dailyRevenueData = getDailyRevenueData(startDateTime, endDateTime);
         List<RevenueAnalyticsDTO.TimeSeriesData> dailyRevenue = new ArrayList<>();
@@ -99,11 +112,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     tsData.setDate(((java.sql.Date) data[0]).toLocalDate());
                 } else if (data[0] instanceof LocalDate) {
                     tsData.setDate((LocalDate) data[0]);
-                } else if (data[0] instanceof java.util.Date) {
-                    tsData.setDate(
-                            new java.sql.Date(((java.util.Date) data[0]).getTime())
-                                    .toLocalDate()
-                    );
                 }
 
                 // Handle revenue value
@@ -129,26 +137,21 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         response.setDailyRevenue(dailyRevenue);
 
         // ====================================
-        // REVENUE BY CATEGORY (DELIVERED)
+        // REVENUE BY CATEGORY & BRAND
         // ====================================
         try {
             Map<String, BigDecimal> revenueByCategory =
                     getRevenueByCategory(startDateTime, endDateTime);
             response.setRevenueByCategory(revenueByCategory);
         } catch (Exception e) {
-            System.err.println("Could not get revenue by category: " + e.getMessage());
             response.setRevenueByCategory(new HashMap<>());
         }
 
-        // ====================================
-        // REVENUE BY BRAND (DELIVERED)
-        // ====================================
         try {
             Map<String, BigDecimal> revenueByBrand =
                     getRevenueByBrand(startDateTime, endDateTime);
             response.setRevenueByBrand(revenueByBrand);
         } catch (Exception e) {
-            System.err.println("Could not get revenue by brand: " + e.getMessage());
             response.setRevenueByBrand(new HashMap<>());
         }
 
@@ -428,58 +431,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
     }
 
-    @Override
-    public CustomerAnalyticsDTO getCustomerAnalytics(AnalyticsFilter filter) {
-        DateRange dateRange = getDateRangeFromFilter(filter);
-        LocalDateTime startDateTime = dateRange.getStartDateTime();
-        LocalDateTime endDateTime = dateRange.getEndDateTime();
 
-        CustomerAnalyticsDTO response = new CustomerAnalyticsDTO();
 
-        // FIX: Use delivered orders count
-        Long periodOrders = orderRepository.countDeliveredOrdersBetweenDates(startDateTime, endDateTime);
-        response.setPeriodOrders(periodOrders != null ? periodOrders : 0L);
-
-        try {
-            // FIX: Use unique customers with delivered orders
-            Long uniqueCustomers = orderRepository.countUniqueCustomersWithDeliveredOrders();
-            response.setUniqueCustomers(uniqueCustomers != null ? uniqueCustomers : 0L);
-
-            // Calculate average orders per customer (delivered only)
-            if (uniqueCustomers != null && uniqueCustomers > 0 && periodOrders != null && periodOrders > 0) {
-                BigDecimal avgOrdersPerCustomer = BigDecimal.valueOf(periodOrders)
-                        .divide(BigDecimal.valueOf(uniqueCustomers), 2, RoundingMode.HALF_UP);
-                response.setAvgOrdersPerCustomer(avgOrdersPerCustomer);
-            } else {
-                response.setAvgOrdersPerCustomer(BigDecimal.ZERO);
-            }
-        } catch (Exception e) {
-            System.err.println("Error calculating customer analytics: " + e.getMessage());
-            response.setUniqueCustomers(0L);
-            response.setAvgOrdersPerCustomer(BigDecimal.ZERO);
-        }
-
-        // Get top wilayas (already fixed in repository)
-        try {
-            List<Object[]> wilayaData = orderRepository.getTopWilayasByDateRange(startDateTime, endDateTime, 5);
-            List<CustomerAnalyticsDTO.WilayaData> topWilayas = wilayaData.stream()
-                    .map(data -> {
-                        CustomerAnalyticsDTO.WilayaData wilayaDataObj = new CustomerAnalyticsDTO.WilayaData();
-                        wilayaDataObj.setWilaya((String) data[0]);
-                        wilayaDataObj.setOrders(((Number) data[1]).longValue());
-                        return wilayaDataObj;
-                    })
-                    .collect(Collectors.toList());
-
-            response.setTopWilayas(topWilayas);
-
-        } catch (Exception e) {
-            System.err.println("Error getting top wilayas: " + e.getMessage());
-            response.setTopWilayas(new ArrayList<>());
-        }
-
-        return response;
-    }
 
     @Override
     public Map<String, Object> getPrescriptionAnalytics(AnalyticsFilter filter) {
@@ -603,6 +556,126 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         retention.put("period", startDate + " to " + endDate);
         retention.put("message", "Customer retention calculation requires customer tracking");
         return retention;
+    }
+
+
+    @Override
+    public CustomerAnalyticsDTO getCustomerAnalytics(AnalyticsFilter filter) {
+        DateRange dateRange = getDateRangeFromFilter(filter);
+        LocalDateTime startDateTime = dateRange.getStartDateTime();
+        LocalDateTime endDateTime = dateRange.getEndDateTime();
+
+        CustomerAnalyticsDTO response = new CustomerAnalyticsDTO();
+
+        try {
+            // ================================
+            // 1. DELIVERED ORDERS COUNT
+            // ================================
+            Long periodOrders = orderRepository.countDeliveredOrdersBetweenDates(startDateTime, endDateTime);
+            response.setPeriodOrders(periodOrders != null ? periodOrders : 0L);
+
+            // ================================
+            // 2. UNIQUE CUSTOMERS (DELIVERED)
+            // ================================
+            // Using the correct method name
+            Long uniqueCustomers = orderRepository.countUniqueCustomersWithDeliveredOrdersByDateRange(
+                    startDateTime, endDateTime
+            );
+            response.setUniqueCustomers(uniqueCustomers != null ? uniqueCustomers : 0L);
+
+            // ================================
+            // 3. AVERAGE ORDERS PER CUSTOMER
+            // ================================
+            if (uniqueCustomers != null && uniqueCustomers > 0 && periodOrders != null && periodOrders > 0) {
+                BigDecimal avgOrdersPerCustomer = BigDecimal.valueOf(periodOrders)
+                        .divide(BigDecimal.valueOf(uniqueCustomers), 2, RoundingMode.HALF_UP);
+                response.setAvgOrdersPerCustomer(avgOrdersPerCustomer);
+            } else {
+                response.setAvgOrdersPerCustomer(BigDecimal.ZERO);
+            }
+
+            // ================================
+            // 4. TOP WILAYAS WITH DETAILS
+            // ================================
+            List<Object[]> wilayaData = orderRepository.getTopWilayasWithDetails(
+                    startDateTime, endDateTime, 5
+            );
+
+            List<CustomerAnalyticsDTO.WilayaData> topWilayas = new ArrayList<>();
+
+            for (Object[] data : wilayaData) {
+                if (data[0] != null && data[0].toString() != null && !data[0].toString().isEmpty()) {
+                    CustomerAnalyticsDTO.WilayaData wilaya = new CustomerAnalyticsDTO.WilayaData();
+
+                    // Wilaya name
+                    wilaya.setWilaya(data[0].toString());
+
+                    // Order count
+                    if (data[1] != null) {
+                        wilaya.setOrders(((Number) data[1]).longValue());
+                    } else {
+                        wilaya.setOrders(0L);
+                    }
+
+                    // Revenue
+                    if (data[2] != null) {
+                        wilaya.setRevenue(new BigDecimal(data[2].toString()));
+                    } else {
+                        wilaya.setRevenue(BigDecimal.ZERO);
+                    }
+
+                    // Customer count
+                    if (data[3] != null) {
+                        wilaya.setCustomers(((Number) data[3]).longValue());
+                    } else {
+                        wilaya.setCustomers(0L);
+                    }
+
+                    topWilayas.add(wilaya);
+                }
+            }
+
+            response.setTopWilayas(topWilayas);
+
+            // ================================
+            // 5. CUSTOMER GROWTH
+            // ================================
+            try {
+                // Calculate previous period for growth
+                long daysBetween = ChronoUnit.DAYS.between(startDateTime.toLocalDate(), endDateTime.toLocalDate());
+                LocalDateTime previousStart = startDateTime.minusDays(daysBetween);
+                LocalDateTime previousEnd = startDateTime;
+
+                Long previousCustomers = orderRepository.countUniqueCustomersWithDeliveredOrdersByDateRange(
+                        previousStart, previousEnd
+                );
+
+                if (previousCustomers != null && previousCustomers > 0 && uniqueCustomers != null) {
+                    BigDecimal growth = BigDecimal.valueOf(uniqueCustomers - previousCustomers)
+                            .divide(BigDecimal.valueOf(previousCustomers), 4, RoundingMode.HALF_UP)
+                            .multiply(BigDecimal.valueOf(100));
+                    response.setCustomerGrowth(growth);
+                } else {
+                    response.setCustomerGrowth(BigDecimal.ZERO);
+                }
+            } catch (Exception e) {
+                System.err.println("Error calculating customer growth: " + e.getMessage());
+                response.setCustomerGrowth(BigDecimal.ZERO);
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error calculating customer analytics: " + e.getMessage());
+            e.printStackTrace();
+
+            // Set default values on error
+            response.setPeriodOrders(0L);
+            response.setUniqueCustomers(0L);
+            response.setAvgOrdersPerCustomer(BigDecimal.ZERO);
+            response.setTopWilayas(new ArrayList<>());
+            response.setCustomerGrowth(BigDecimal.ZERO);
+        }
+
+        return response;
     }
 
     @Override

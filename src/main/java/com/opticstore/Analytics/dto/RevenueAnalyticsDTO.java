@@ -19,6 +19,9 @@ public class RevenueAnalyticsDTO {
     private List<TimeSeriesData> dailyRevenue;
     private Map<String, BigDecimal> revenueByCategory;
     private Map<String, BigDecimal> revenueByBrand;
+    private BigDecimal conversionRate;
+    private Long totalOrders;
+
 
     // getters and setters
     public BigDecimal getTotalRevenue() { return totalRevenue; }
@@ -39,6 +42,22 @@ public class RevenueAnalyticsDTO {
     public Map<String, BigDecimal> getRevenueByBrand() { return revenueByBrand; }
     public void setRevenueByBrand(Map<String, BigDecimal> revenueByBrand) { this.revenueByBrand = revenueByBrand; }
 
+    public BigDecimal getConversionRate() {
+        return conversionRate;
+    }
+
+    public void setConversionRate(BigDecimal conversionRate) {
+        this.conversionRate = conversionRate;
+    }
+
+    public Long getTotalOrders() {
+        return totalOrders;
+    }
+
+    public void setTotalOrders(Long totalOrders) {
+        this.totalOrders = totalOrders;
+    }
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -48,7 +67,7 @@ public class RevenueAnalyticsDTO {
         private Integer orders;
 
         public TimeSeriesData(){}
-        // Manual getters and setters
+        //  getters and setters
         public LocalDate getDate() { return date; }
         public void setDate(LocalDate date) { this.date = date; }
 

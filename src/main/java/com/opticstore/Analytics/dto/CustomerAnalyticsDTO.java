@@ -16,8 +16,9 @@ public class CustomerAnalyticsDTO {
     private Long periodOrders;
     private BigDecimal avgOrdersPerCustomer;
     private List<WilayaData> topWilayas;
+    private BigDecimal customerGrowth;
 
-    // Manual getters/setters if Lombok not working
+    // getters and setters
     public Long getUniqueCustomers() { return uniqueCustomers; }
     public void setUniqueCustomers(Long uniqueCustomers) { this.uniqueCustomers = uniqueCustomers; }
 
@@ -30,18 +31,30 @@ public class CustomerAnalyticsDTO {
     public List<WilayaData> getTopWilayas() { return topWilayas; }
     public void setTopWilayas(List<WilayaData> topWilayas) { this.topWilayas = topWilayas; }
 
+    public BigDecimal getCustomerGrowth() {return customerGrowth;}
+    public void setCustomerGrowth(BigDecimal customerGrowth) {this.customerGrowth = customerGrowth;}
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class WilayaData {
         private String wilaya;
         private Long orders;
+        private BigDecimal revenue;
+        private Long customers;
 
-        // Manual getters/setters
+
+        //  getters/setters
         public String getWilaya() { return wilaya; }
         public void setWilaya(String wilaya) { this.wilaya = wilaya; }
 
         public Long getOrders() { return orders; }
         public void setOrders(Long orders) { this.orders = orders; }
+
+        public BigDecimal getRevenue() {return revenue;}
+        public void setRevenue(BigDecimal revenue) {this.revenue = revenue;}
+
+        public Long getCustomers() {return customers;}
+        public void setCustomers(Long customers) {this.customers = customers;}
     }
 }

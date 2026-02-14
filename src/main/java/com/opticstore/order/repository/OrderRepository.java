@@ -171,4 +171,35 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             ") as customer_avg",
             nativeQuery = true)
     BigDecimal getAverageDeliveredOrderValuePerCustomer();
+
+
+    // ================================
+    //WILAYA ANALYTICS
+    // ================================
+    @Query(value = "SELECT COUNT(DISTINCT phone) FROM orders " +
+            "WHERE status = 'DELIVERED' " +
+            "AND created_at BETWEEN :start AND :end",
+            nativeQuery = true)
+    Long countUniqueCustomersWithDeliveredOrdersByDateRange(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+    // In OrderRepository.java - More efficient single query
+    @Query(value = "SELECT " +
+            "o.wilaya, " +
+            "COUNT(o.id) as order_count, " +
+            "COALESCE(SUM(o.total), 0) as total_revenue, " +
+            "COUNT(DISTINCT o.phone) as customer_count " +
+            "FROM orders o " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +
+            "GROUP BY o.wilaya " +
+            "ORDER BY order_count DESC, total_revenue DESC " +
+            "LIMIT :limit",
+            nativeQuery = true)
+    List<Object[]> getTopWilayasWithDetails(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("limit") int limit
+    );
 }
