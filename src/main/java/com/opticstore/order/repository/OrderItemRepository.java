@@ -7,32 +7,57 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 
-    // Get revenue by category - ONLY DELIVERED ORDERS
+    // ==================== REVENUE BY CATEGORY METHODS ====================
+
+    // Get revenue by category - ALL DELIVERED ORDERS
     @Query(value = "SELECT c.name as category, " +
             "COALESCE(SUM(oi.price * oi.quantity), 0) as revenue, " +
-            "COUNT(oi.id) as order_count " +
+            "COUNT(DISTINCT o.id) as order_count " +
             "FROM order_items oi " +
             "JOIN orders o ON oi.order_id = o.id " +
             "JOIN glasses g ON oi.glass_id = g.id " +
             "JOIN category c ON g.category_id = c.id " +
             "WHERE o.created_at BETWEEN :start AND :end " +
-            "AND o.status = 'DELIVERED' " +  // ADD THIS FILTER
+            "AND o.status = 'DELIVERED' " +
+            "GROUP BY c.name " +
             "ORDER BY revenue DESC",
             nativeQuery = true)
     List<Object[]> getRevenueByCategory(@Param("start") LocalDateTime start,
                                         @Param("end") LocalDateTime end);
 
+    // Get revenue by category with optional category filter
+    @Query(value = "SELECT c.name as category, " +
+            "COALESCE(SUM(oi.price * oi.quantity), 0) as revenue, " +
+            "COUNT(DISTINCT o.id) as order_count " +
+            "FROM order_items oi " +
+            "JOIN orders o ON oi.order_id = o.id " +
+            "JOIN glasses g ON oi.glass_id = g.id " +
+            "JOIN category c ON g.category_id = c.id " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +
+            "AND (:category IS NULL OR c.name = :category) " +
+            "GROUP BY c.name " +
+            "ORDER BY revenue DESC",
+            nativeQuery = true)
+    List<Object[]> getRevenueByCategoryWithFilter(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("category") String category
+    );
 
-    // Get revenue by brand - ONLY DELIVERED ORDERS
+    // ==================== REVENUE BY BRAND METHODS ====================
+
+    // Get revenue by brand - ALL DELIVERED ORDERS
     @Query(value = "SELECT b.name as brand, " +
             "COALESCE(SUM(oi.price * oi.quantity), 0) as revenue, " +
-            "COUNT(oi.id) as order_count " +
+            "COUNT(DISTINCT o.id) as order_count " +
             "FROM order_items oi " +
             "JOIN orders o ON oi.order_id = o.id " +
             "JOIN glasses g ON oi.glass_id = g.id " +
@@ -45,10 +70,32 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     List<Object[]> getRevenueByBrand(@Param("start") LocalDateTime start,
                                      @Param("end") LocalDateTime end);
 
-    // Get top selling glasses
+    // Get revenue by brand with optional brand filter
+    @Query(value = "SELECT b.name as brand, " +
+            "COALESCE(SUM(oi.price * oi.quantity), 0) as revenue, " +
+            "COUNT(DISTINCT o.id) as order_count " +
+            "FROM order_items oi " +
+            "JOIN orders o ON oi.order_id = o.id " +
+            "JOIN glasses g ON oi.glass_id = g.id " +
+            "JOIN brand b ON g.brand_id = b.id " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +
+            "AND (:brand IS NULL OR b.name = :brand) " +
+            "GROUP BY b.name " +
+            "ORDER BY revenue DESC",
+            nativeQuery = true)
+    List<Object[]> getRevenueByBrandWithFilter(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("brand") String brand
+    );
+
+    // ==================== TOP SELLING GLASSES METHODS ====================
+
+    // Get top selling glasses - ALL DELIVERED ORDERS
     @Query(value = "SELECT g.id, g.name, b.name as brand, c.name as category, " +
-            "SUM(oi.quantity) as units_sold, " +
-            "SUM(oi.price * oi.quantity) as revenue " +
+            "COALESCE(SUM(oi.quantity), 0) as units_sold, " +
+            "COALESCE(SUM(oi.price * oi.quantity), 0) as revenue " +
             "FROM order_items oi " +
             "JOIN orders o ON oi.order_id = o.id " +
             "JOIN glasses g ON oi.glass_id = g.id " +
@@ -63,4 +110,121 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     List<Object[]> getTopSellingGlasses(@Param("start") LocalDateTime start,
                                         @Param("end") LocalDateTime end,
                                         Pageable pageable);
+
+    // Get top selling glasses with category and/or brand filters
+    @Query(value = "SELECT g.id, g.name, b.name as brand, c.name as category, " +
+            "COALESCE(SUM(oi.quantity), 0) as units_sold, " +
+            "COALESCE(SUM(oi.price * oi.quantity), 0) as revenue " +
+            "FROM order_items oi " +
+            "JOIN orders o ON oi.order_id = o.id " +
+            "JOIN glasses g ON oi.glass_id = g.id " +
+            "LEFT JOIN brand b ON g.brand_id = b.id " +
+            "LEFT JOIN category c ON g.category_id = c.id " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +
+            "AND (:category IS NULL OR c.name = :category) " +
+            "AND (:brand IS NULL OR b.name = :brand) " +
+            "GROUP BY g.id, g.name, b.name, c.name " +
+            "ORDER BY revenue DESC " +
+            "LIMIT :#{#pageable.pageSize}",
+            nativeQuery = true)
+    List<Object[]> getTopSellingGlassesWithFilters(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("category") String category,
+            @Param("brand") String brand,
+            Pageable pageable
+    );
+
+    // ==================== DAILY REVENUE METHODS ====================
+
+    // Get daily revenue with category and/or brand filters
+    @Query(value = "SELECT DATE(o.created_at) as date, " +
+            "COALESCE(SUM(oi.price * oi.quantity), 0) as revenue, " +
+            "COUNT(DISTINCT o.id) as order_count " +
+            "FROM order_items oi " +
+            "JOIN orders o ON oi.order_id = o.id " +
+            "JOIN glasses g ON oi.glass_id = g.id " +
+            "LEFT JOIN category c ON g.category_id = c.id " +
+            "LEFT JOIN brand b ON g.brand_id = b.id " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +
+            "AND (:category IS NULL OR c.name = :category) " +
+            "AND (:brand IS NULL OR b.name = :brand) " +
+            "GROUP BY DATE(o.created_at) " +
+            "ORDER BY DATE(o.created_at)",
+            nativeQuery = true)
+    List<Object[]> getDailyRevenueWithFilters(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("category") String category,
+            @Param("brand") String brand
+    );
+
+    // ==================== FILTERED COUNTS AND SUMS ====================
+
+    // Get filtered orders count by category and/or brand
+    @Query(value = "SELECT COUNT(DISTINCT o.id) " +
+            "FROM order_items oi " +
+            "JOIN orders o ON oi.order_id = o.id " +
+            "JOIN glasses g ON oi.glass_id = g.id " +
+            "LEFT JOIN category c ON g.category_id = c.id " +
+            "LEFT JOIN brand b ON g.brand_id = b.id " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +
+            "AND (:category IS NULL OR c.name = :category) " +
+            "AND (:brand IS NULL OR b.name = :brand)",
+            nativeQuery = true)
+    Long getFilteredOrdersCount(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("category") String category,
+            @Param("brand") String brand
+    );
+
+    // Get filtered total revenue by category and/or brand
+    @Query(value = "SELECT COALESCE(SUM(oi.price * oi.quantity), 0) " +
+            "FROM order_items oi " +
+            "JOIN orders o ON oi.order_id = o.id " +
+            "JOIN glasses g ON oi.glass_id = g.id " +
+            "LEFT JOIN category c ON g.category_id = c.id " +
+            "LEFT JOIN brand b ON g.brand_id = b.id " +
+            "WHERE o.created_at BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED' " +
+            "AND (:category IS NULL OR c.name = :category) " +
+            "AND (:brand IS NULL OR b.name = :brand)",
+            nativeQuery = true)
+    BigDecimal getFilteredRevenue(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("category") String category,
+            @Param("brand") String brand
+    );
+
+    // ==================== ADDITIONAL USEFUL METHODS ====================
+
+    // Get total units sold for a specific product in a date range
+    @Query("SELECT COALESCE(SUM(oi.quantity), 0) " +
+            "FROM OrderItem oi " +
+            "JOIN oi.order o " +
+            "WHERE oi.glasses.id = :glassId " +
+            "AND o.createdAt BETWEEN :start AND :end " +
+            "AND o.status = 'DELIVERED'")
+    Integer getTotalUnitsSoldForProduct(
+            @Param("glassId") Long glassId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    // Get products that are out of stock (based on orders)
+    @Query("SELECT g.id, g.name, COALESCE(SUM(oi.quantity), 0) as totalSold " +
+            "FROM Glasses g " +
+            "LEFT JOIN OrderItem oi ON oi.glasses.id = g.id " +
+            "LEFT JOIN oi.order o ON o.createdAt BETWEEN :start AND :end AND o.status = 'DELIVERED' " +
+            "WHERE g.quantity <= 0 " +
+            "GROUP BY g.id, g.name")
+    List<Object[]> getOutOfStockProductsWithSales(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 }
