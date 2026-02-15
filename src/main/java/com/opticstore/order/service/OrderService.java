@@ -11,13 +11,18 @@ import com.opticstore.order.model.OrderItem;
 import com.opticstore.order.model.OrderStatus;
 import com.opticstore.order.model.PaymentMethod;
 import com.opticstore.order.repository.OrderRepository;
+import com.opticstore.product.glasses.model.Glasses;
+import com.opticstore.product.glasses.repository.GlassesRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 @Service
@@ -26,18 +31,37 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryService statusHistoryService;
     private final NotificationService notificationService;
+    private final GlassesRepository glassesRepository;
+
 
     public OrderService(
             OrderRepository orderRepository,
             OrderStatusHistoryService statusHistoryService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            GlassesRepository glassesRepository
     ) {
         this.orderRepository = orderRepository;
         this.statusHistoryService = statusHistoryService;
         this.notificationService = notificationService;
+        this.glassesRepository = glassesRepository;
     }
 
+    @Transactional
     public Order createOrder(OrderRequest request) {
+
+        // First, validate and reserve stock for all items
+        for (OrderItemRequest item : request.items()) {
+            Glasses glasses = glassesRepository.findById(item.glassId())
+                    .orElseThrow(() -> new RuntimeException("Product not found with id: " + item.glassId()));
+
+            // Check if enough stock is available using isInStock() helper
+            if (!glasses.isInStock() || glasses.getQuantity() < item.quantity()) {
+                throw new RuntimeException(
+                        String.format("Insufficient stock for product: %s. Available: %d, Requested: %d",
+                                glasses.getName(), glasses.getQuantity(), item.quantity())
+                );
+            }
+        }
 
         Order order = new Order();
         order.setFirstName(request.firstName());
@@ -67,9 +91,31 @@ public class OrderService {
 
         order.setTotal(total);
 
+        // Save the order first
         Order savedOrder = orderRepository.save(order);
 
-        //  Notification: new order created
+        // Now update stock for each item using decreaseQuantity method
+        for (OrderItemRequest item : request.items()) {
+            Glasses glasses = glassesRepository.findById(item.glassId()).get();
+
+            // Use the existing decreaseQuantity method
+            glasses.decreaseQuantity(item.quantity());
+
+            glassesRepository.save(glasses);
+
+            // Create low stock notification if threshold is reached
+            if (glasses.getQuantity() <= 5) {
+                notificationService.createSystemNotification(
+                    "Low Stock Alert",
+                    String.format("Product '%s' is running low. Current stock: %d",
+                        glasses.getName(), glasses.getQuantity()),
+                    NotificationType.LOW_STOCK,
+                    NotificationPriority.HIGH
+                );
+            }
+        }
+
+        // Notification: new order created
         notificationService.createNotification(
                 "New Order Received",
                 String.format(
@@ -85,6 +131,52 @@ public class OrderService {
 
         return savedOrder;
     }
+
+
+    // restore stock when an order is canceled
+    @Transactional
+    public void restoreStockForCanceledOrder(Order order) {
+        for (OrderItem item : order.getItems()) {
+            Glasses glasses = glassesRepository.findById(item.getGlassId())
+                    .orElseThrow(() -> new RuntimeException("Product not found: " + item.getGlassId()));
+
+            glasses.increaseQuantity(item.getQuantity());
+            glassesRepository.save(glasses);
+        }
+    }
+
+
+    //check stock before placing order
+    public Map<String, Object> validateStockBeforeOrder(List<OrderItemRequest> items) {
+        Map<String, Object> result = new HashMap<>();
+        List<Map<String, Object>> unavailableItems = new ArrayList<>();
+        boolean allAvailable = true;
+
+        for (OrderItemRequest item : items) {
+            Glasses glasses = glassesRepository.findById(item.glassId()).orElse(null);
+            if (glasses == null) {
+                Map<String, Object> unavailable = new HashMap<>();
+                unavailable.put("glassId", item.glassId());
+                unavailable.put("reason", "Product not found");
+                unavailableItems.add(unavailable);
+                allAvailable = false;
+            } else if (!glasses.isInStock() || glasses.getQuantity() < item.quantity()) {
+                Map<String, Object> unavailable = new HashMap<>();
+                unavailable.put("glassId", item.glassId());
+                unavailable.put("name", glasses.getName());
+                unavailable.put("available", glasses.getQuantity());
+                unavailable.put("requested", item.quantity());
+                unavailable.put("reason", "Insufficient stock");
+                unavailableItems.add(unavailable);
+                allAvailable = false;
+            }
+        }
+
+        result.put("allAvailable", allAvailable);
+        result.put("unavailableItems", unavailableItems);
+        return result;
+    }
+
 
     // GET ADMIN ORDERS
     public Page<AdminOrderResponse> getAdminOrders(
@@ -134,13 +226,36 @@ public class OrderService {
 
     @Transactional
     public Order updateOrderStatus(Long orderId, OrderStatus newStatus, String adminUsername) {
-
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
         OrderStatus oldStatus = order.getStatus();
 
         if (oldStatus != newStatus) {
+            // If order is being canceled, restore stock
+            if (newStatus == OrderStatus.CANCELED && oldStatus != OrderStatus.CANCELED) {
+                restoreStockForCanceledOrder(order);
+            }
+
+            // If order was canceled and is being reactivated, reduce stock again
+            if (oldStatus == OrderStatus.CANCELED && newStatus != OrderStatus.CANCELED) {
+                // Check stock availability before reactivating
+                for (OrderItem item : order.getItems()) {
+                    Glasses glasses = glassesRepository.findById(item.getGlassId()).get();
+                    if (glasses.getQuantity() < item.getQuantity()) {
+                        throw new RuntimeException(
+                                "Cannot reactivate order: insufficient stock for " + glasses.getName()
+                        );
+                    }
+                }
+                // Reduce stock again using decreaseQuantity
+                for (OrderItem item : order.getItems()) {
+                    Glasses glasses = glassesRepository.findById(item.getGlassId()).get();
+                    glasses.decreaseQuantity(item.getQuantity());
+                    glassesRepository.save(glasses);
+                }
+            }
+
             order.setStatus(newStatus);
             orderRepository.save(order);
 
@@ -151,7 +266,6 @@ public class OrderService {
                     adminUsername
             );
 
-            // 🔔 Notification: order status changed
             notificationService.createNotification(
                     "Order Status Updated",
                     String.format(

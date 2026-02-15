@@ -37,8 +37,8 @@ public class DashboardService {
         // Basic stats
         long totalOrders = orderRepository.totalOrders();
 
-        // Calculate total revenue from ALL orders
-        BigDecimal totalRevenueBD = orderRepository.findAll().stream()
+        // FIX: Calculate total revenue from ONLY DELIVERED orders
+        BigDecimal totalRevenueBD = orderRepository.findByStatus(OrderStatus.DELIVERED).stream()
                 .map(Order::getTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         double totalRevenue = totalRevenueBD.doubleValue();
@@ -55,12 +55,12 @@ public class DashboardService {
         LocalDateTime endOfToday = today.plusDays(1).atStartOfDay();
         long todayOrders = orderRepository.countByCreatedAtBetween(startOfToday, endOfToday);
 
-        // Active customers = unique customers who placed orders
-        long activeCustomers = orderRepository.countUniqueCustomers();
+        // Active customers = unique customers who placed DELIVERED orders
+        long activeCustomers = orderRepository.countUniqueCustomersWithDeliveredOrders();
 
-        // Average order value
-        double averageOrderValue = totalOrders > 0 ?
-                totalRevenueBD.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP).doubleValue() : 0.0;
+        // FIX: Average order value should use DELIVERED orders only
+        double averageOrderValue = deliveredOrders > 0 ?
+                totalRevenueBD.divide(BigDecimal.valueOf(deliveredOrders), 2, RoundingMode.HALF_UP).doubleValue() : 0.0;
 
         // Simple growth calculations (set to 0 for now)
         double orderGrowth = 0.0;
@@ -68,25 +68,23 @@ public class DashboardService {
         double pendingChange = 0.0;
         double deliveredChange = 0.0;
 
-        // Period revenues
-        BigDecimal dailyRevenueBD = orderRepository.findByCreatedAtBetween(startOfToday, endOfToday).stream()
-                .map(Order::getTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        double dailyRevenue = dailyRevenueBD.doubleValue();
+        // Period revenues - FIX: Use methods that filter by DELIVERED status
+        // Daily revenue - only DELIVERED orders today
+        BigDecimal dailyRevenueBD = orderRepository.sumRevenueByStatusBetweenDates(
+                OrderStatus.DELIVERED, startOfToday, endOfToday);
+        double dailyRevenue = dailyRevenueBD != null ? dailyRevenueBD.doubleValue() : 0.0;
 
-        // Weekly revenue (last 7 days)
+        // Weekly revenue (last 7 days) - only DELIVERED orders
         LocalDateTime startOfWeek = today.minusDays(7).atStartOfDay();
-        BigDecimal weeklyRevenueBD = orderRepository.findByCreatedAtAfter(startOfWeek).stream()
-                .map(Order::getTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        double weeklyRevenue = weeklyRevenueBD.doubleValue();
+        BigDecimal weeklyRevenueBD = orderRepository.sumRevenueByStatusBetweenDates(
+                OrderStatus.DELIVERED, startOfWeek, endOfToday);
+        double weeklyRevenue = weeklyRevenueBD != null ? weeklyRevenueBD.doubleValue() : 0.0;
 
-        // Monthly revenue (last 30 days)
+        // Monthly revenue (last 30 days) - only DELIVERED orders
         LocalDateTime startOfMonth = today.minusDays(30).atStartOfDay();
-        BigDecimal monthlyRevenueBD = orderRepository.findByCreatedAtAfter(startOfMonth).stream()
-                .map(Order::getTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        double monthlyRevenue = monthlyRevenueBD.doubleValue();
+        BigDecimal monthlyRevenueBD = orderRepository.sumRevenueByStatusBetweenDates(
+                OrderStatus.DELIVERED, startOfMonth, endOfToday);
+        double monthlyRevenue = monthlyRevenueBD != null ? monthlyRevenueBD.doubleValue() : 0.0;
 
         return new DashboardStatsResponse(
                 totalOrders,
@@ -94,16 +92,16 @@ public class DashboardService {
                 pendingOrders,           // NEW orders
                 deliveredOrders,
                 todayOrders,
-                activeCustomers,         // Unique customers
-                averageOrderValue,
+                activeCustomers,         // Now only customers with DELIVERED orders
+                averageOrderValue,       // Now based on DELIVERED orders only
                 orderGrowth,
                 revenueGrowth,
                 pendingChange,
                 deliveredChange,
-                dailyRevenue,
-                weeklyRevenue,
-                monthlyRevenue,
-                confirmedOrders,         // Additional statuses
+                dailyRevenue,            // Now only DELIVERED orders today
+                weeklyRevenue,           // Now only DELIVERED orders in last 7 days
+                monthlyRevenue,          // Now only DELIVERED orders in last 30 days
+                confirmedOrders,
                 shippedOrders,
                 canceledOrders
         );

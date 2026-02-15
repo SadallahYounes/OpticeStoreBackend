@@ -23,8 +23,4 @@ public class DashboardController {
         return dashboardService.getDashboardStats();
     }
 
-    // more endpoints later:
-    // @GetMapping("/recent-orders")
-    // @GetMapping("/top-products")
-    // @GetMapping("/sales-chart")
 }

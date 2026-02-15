@@ -51,6 +51,28 @@ public class NotificationService {
         return saved;
     }
 
+    public Notification createSystemNotification(
+            String title,
+            String message,
+            NotificationType type,
+            NotificationPriority priority) {
+
+        Notification notification = new Notification();
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setType(type);
+        notification.setPriority(priority);
+        notification.setOrder(null);
+        notification.setRead(false);
+
+        Notification saved = notificationRepository.save(notification);
+
+        // Send SSE event to all connected admins
+        sendSSENotification(saved);
+
+        return saved;
+    }
+
     private void sendSSENotification(Notification notification) {
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("id", notification.getId());

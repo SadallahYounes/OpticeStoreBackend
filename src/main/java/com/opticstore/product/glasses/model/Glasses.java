@@ -242,4 +242,11 @@ public class Glasses extends BaseEntity {
         }
         this.quantity -= amount;
     }
+
+    public void increaseQuantity(int amount) {
+        if (amount < 0) {
+            throw new IllegalArgumentException("Amount cannot be negative");
+        }
+        this.quantity += amount;
+    }
 }
